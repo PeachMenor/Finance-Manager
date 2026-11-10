@@ -105,7 +105,7 @@ def test_excluded_accounts_not_counted(session):
 
 def test_summary_endpoint(session):
     _load_demo(session)
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://localhost") as client:
         body = client.get("/summary").json()
     assert body["net_worth_cents"] == EXPECTED_NET_WORTH_CENTS
     assert body["people"] == [

@@ -1,14 +1,29 @@
-"""FastAPI entry point. Run with:  uvicorn app.main:app --reload  (from backend/)."""
+"""FastAPI entry point. Run with:  uvicorn app.main:app --reload  (from backend/).
+
+Security: this server holds your financial data and has no login, so it must only
+be reachable from this computer.
+- uvicorn listens on 127.0.0.1 by default. Never start it with --host 0.0.0.0.
+- TrustedHostMiddleware rejects requests whose Host isn't localhost/127.0.0.1. That
+  blocks "DNS rebinding", where a malicious website tricks your browser into
+  reading a local server.
+"""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.plaid import router as plaid_router
 from app.db.base import get_session, init_db
 from app.db.models import Account
 from app.services.networth import compute_net_worth
+
+STATIC_DIR = Path(__file__).parent / "static"
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 @asynccontextmanager
@@ -19,6 +34,14 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Finance Manager", lifespan=lifespan)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+app.include_router(plaid_router)
+
+
+@app.get("/link", include_in_schema=False)
+def link_page() -> FileResponse:
+    """The page for linking bank logins through Plaid."""
+    return FileResponse(STATIC_DIR / "link.html")
 
 
 @app.get("/health")

@@ -83,6 +83,12 @@ class FakePlaid:
             return httpx.Response(200, json=SYNC_PAGES[body.get("cursor")])
         if path == "/investments/holdings/get":
             return httpx.Response(200, json=HOLDINGS)
+        if path == "/link/token/create":
+            return httpx.Response(200, json={"link_token": "link-sandbox-abc"})
+        if path == "/item/public_token/exchange":
+            return httpx.Response(200, json={"item_id": "item-1", "access_token": "tok-1"})
+        if path == "/item/remove":
+            return httpx.Response(200, json={"request_id": "r"})
         return httpx.Response(404, json={"error_code": "NOT_FOUND", "error_message": path})
 
     def client(self):

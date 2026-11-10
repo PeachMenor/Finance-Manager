@@ -28,7 +28,21 @@ class Settings:
         return f"sqlite:///{self.database_path}"
 
 
+def default_database_path() -> Path:
+    """Real accounts and Plaid's fake sandbox banks never share a database.
+
+    PLAID_ENV=production -> data/finance.db  (your real data)
+    anything else        -> data/sandbox.db  (fake test data)
+    """
+    if os.getenv("PLAID_ENV", "sandbox") == "production":
+        return REPO_ROOT / "data" / "finance.db"
+    return REPO_ROOT / "data" / "sandbox.db"
+
+
 def get_settings() -> Settings:
-    """Build settings from the environment (called fresh so tests can override)."""
-    db_path = Path(os.getenv("FM_DATABASE_PATH", REPO_ROOT / "data" / "finance.db"))
+    """Build settings from the environment (called fresh so tests can override).
+
+    FM_DATABASE_PATH, if set, overrides the default (tests and demo commands use it).
+    """
+    db_path = Path(os.getenv("FM_DATABASE_PATH") or default_database_path())
     return Settings(database_path=db_path)

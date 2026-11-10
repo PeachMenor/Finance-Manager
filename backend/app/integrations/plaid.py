@@ -83,6 +83,40 @@ class PlaidClient:
             raise PlaidError(data.get("error_code", "UNKNOWN"), data.get("error_message", ""))
         return data
 
+    # --- linking a login through Plaid Link (the secure pop-up) ---
+    def create_link_token(self, kind: str = "banking") -> str:
+        """Short-lived token that opens Plaid Link in the browser.
+
+        kind="banking":     banks and cards; holdings too if the login has them.
+        kind="investments": brokerages and retirement accounts that may not offer
+                            transactions (otherwise Link would hide them).
+        """
+        if kind == "investments":
+            products, optional = ["investments"], ["transactions"]
+        else:
+            products, optional = ["transactions"], ["investments"]
+        data = self.post(
+            "/link/token/create",
+            {
+                "client_name": "Finance Manager",
+                "user": {"client_user_id": "local-user"},  # single-user local app
+                "products": products,
+                "optional_products": optional,
+                "country_codes": ["US"],
+                "language": "en",
+            },
+        )
+        return data["link_token"]
+
+    def exchange_public_token(self, public_token: str) -> tuple[str, str]:
+        """Swap the one-time token from Link for a lasting (item_id, access_token)."""
+        data = self.post("/item/public_token/exchange", {"public_token": public_token})
+        return data["item_id"], data["access_token"]
+
+    def remove_item(self, access_token: str) -> None:
+        """Revoke the app's access to a login at Plaid (unlink)."""
+        self.post("/item/remove", {"access_token": access_token})
+
     # --- sandbox only: create a fake linked login without the Link UI ---
     def create_sandbox_access_token(
         self, institution_id: str = SANDBOX_INSTITUTION_ID

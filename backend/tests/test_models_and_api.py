@@ -72,7 +72,7 @@ def test_liability_kinds():
 
 def test_health_and_accounts_endpoints(session):
     _make_account(session)
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://localhost") as client:
         assert client.get("/health").json() == {"status": "ok"}
         accounts = client.get("/accounts").json()
     assert accounts == [

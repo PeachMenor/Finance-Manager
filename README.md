@@ -53,7 +53,20 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    ```bash
    uvicorn app.main:app --reload
    ```
-   Open http://127.0.0.1:8000/docs to see the API (`/accounts`, `/summary`). Your database is created at `data/finance.db`.
+   - **Link accounts:** open http://localhost:8000/link and use the buttons. Plaid's own secure window opens and you sign in to your bank there; this app never sees your bank password.
+   - **API:** http://localhost:8000/docs (`/accounts`, `/summary`, `/plaid/...`).
+   - **Keep it local:** never start the server with `--host 0.0.0.0`. It has no login and holds your financial data; it also rejects requests not addressed to `localhost`/`127.0.0.1`.
+
+### Sandbox vs. real accounts
+
+| `PLAID_ENV` in `.env` | Plaid secret to use | Database |
+|---|---|---|
+| `sandbox` | Sandbox secret | `data/sandbox.db` (fake banks; sign in with `user_good` / `pass_good`) |
+| `production` | Production secret | `data/finance.db` (your real accounts) |
+
+The two never mix. Restart the server after changing `.env`.
+
+Some large banks and brokerages connect through their own sign-in page (OAuth). Plaid may ask you to complete your app and company profile in the Plaid Dashboard before those institutions appear, and approval can take a few days.
 
 ## Project layout
 

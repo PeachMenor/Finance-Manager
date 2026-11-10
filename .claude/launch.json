@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "finance-manager",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd backend && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000"],
+      "port": 8000,
+      "url": "http://localhost:8000"
+    }
+  ]
+}

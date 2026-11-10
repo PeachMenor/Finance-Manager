@@ -155,16 +155,22 @@ def sync_person_balances(
     return len(kept)
 
 
-def sync_plaid_items(session: Session, client) -> SyncResult:
-    """Sync every linked Plaid login, saving each one's cursor for the next run."""
+def sync_plaid_item(session: Session, client, item: PlaidItem) -> SyncResult:
+    """Sync one linked Plaid login and save its cursor for the next run."""
     from app.integrations.plaid import PlaidIntegration  # local import avoids a cycle
 
+    integration = PlaidIntegration(client, item.access_token, cursor=item.cursor)
+    result = sync_accounts(session, DataSource.PLAID, integration.fetch_accounts())
+    item.cursor = integration.next_cursor
+    item.institution_name = integration.institution_name
+    item.last_synced_at = datetime.now(timezone.utc)
+    session.commit()
+    return result
+
+
+def sync_plaid_items(session: Session, client) -> SyncResult:
+    """Sync every linked Plaid login."""
     total = SyncResult()
     for item in session.scalars(select(PlaidItem)).all():
-        integration = PlaidIntegration(client, item.access_token, cursor=item.cursor)
-        total += sync_accounts(session, DataSource.PLAID, integration.fetch_accounts())
-        item.cursor = integration.next_cursor
-        item.institution_name = integration.institution_name
-        item.last_synced_at = datetime.now(timezone.utc)
-        session.commit()
+        total += sync_plaid_item(session, client, item)
     return total

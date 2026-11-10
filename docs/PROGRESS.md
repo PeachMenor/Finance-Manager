@@ -10,7 +10,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Backend skeleton: config, database, data models, health API, tests
 - [x] 🧑 List where your money lives (kept in git-ignored `data/`, not in the repo)
 - [x] 🤖 Report what can be synced, imported, or not connected ([INTEGRATIONS.md](INTEGRATIONS.md))
-- [ ] 🧑 Sign up for Plaid (Trial plan) and Splitwise API; put keys in `.env`
+- [x] 🧑 Sign up for Plaid (Trial plan); sandbox keys in `.env` (Splitwise: screenshot instead)
 - [ ] 🧑 Link bank logins on the aggregator's own page
 - [x] 🤖 Sync engine (re-runs never duplicate; balance history kept) + net-worth math, tested on fake banks
 - [x] 🤖 Plaid integration: balances, transactions, holdings, tested against a fake Plaid server
@@ -18,7 +18,9 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Weekly Splitwise screenshot import (`people-import`)
 - [x] 🧑 Review the fake-data demo and approve (2026-11-10)
 - [x] 🧑🤖 Live check against Plaid's sandbox: 14 accounts, transactions and 13 holdings synced; totals verified
-- [ ] 🤖 Plaid Link page so you can connect real logins
+- [x] 🤖 Plaid Link page (`/link`): link, sync now, unlink; verified against Plaid sandbox in the browser
+- [x] 🤖 Sandbox and real data kept in separate databases; server only answers to localhost
+- [ ] 🧑 Switch to Plaid production: production secret + `PLAID_ENV=production`; complete Plaid Dashboard profile for OAuth banks
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
 - [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync
@@ -50,3 +52,5 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Unvested RSUs are shown separately and excluded from net worth by default | They aren't owned until they vest |
 | 2026-11-10 | Splitwise balances come from a weekly screenshot, not the API | The API requires a paid Pro subscription |
 | 2026-11-10 | Demo commands refuse to wipe any database except `data/demo.db` | A sandbox run once wrote to the real database file; guard prevents it |
+| 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
+| 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

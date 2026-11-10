@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Accounts</title>
+<!-- Plaid requires Link to be loaded from its own CDN. Your bank sign-in happens
+     inside Plaid's window; this page never sees your username or password. -->
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
+    --border: #e3e3e0; --accent: #1f6feb; --accent-text: #ffffff;
+    --ok: #1a7f37; --bad: #c62828; --warn-bg: #fff4d6; --warn-text: #6b4e00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414; --card: #1e1e1e; --text: #ececec; --muted: #9a9a9f;
+      --border: #333333; --accent: #4c8dff; --accent-text: #0b0b0b;
+      --ok: #4ac26b; --bad: #ff6b6b; --warn-bg: #3a3000; --warn-text: #ffe08a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .banner {
+    background: var(--warn-bg); color: var(--warn-text); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 20px; display: none;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    font: inherit; border-radius: 8px; padding: 9px 14px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  li:first-child { border-top: 0; }
+  .name { font-weight: 600; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); }
+  #log { min-height: 1.5em; margin-top: 12px; font-size: 14px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Link accounts</h1>
+  <p class="sub">Connect your banks, cards and investment accounts. The app only reads data and can never move money.</p>
+
+  <div class="banner" id="sandbox-banner">
+    Sandbox mode: these are Plaid's fake test banks, saved to a separate test database.
+    Use username <b>user_good</b> and password <b>pass_good</b>.
+  </div>
+
+  <section class="card">
+    <h2>Add a login</h2>
+    <div class="actions">
+      <button class="primary" data-kind="banking">Bank or credit card</button>
+      <button class="primary" data-kind="investments">Investment or retirement account</button>
+    </div>
+    <p class="hint">One login can cover several accounts (for example, a checking account and two cards at the same bank).</p>
+    <div id="log" role="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>Linked logins</h2>
+    <ul id="items"><li class="empty">Nothing linked yet.</li></ul>
+    <div class="actions" style="margin-top:12px">
+      <button id="sync">Sync now</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const log = (msg, cls = "") => {
+  const el = document.getElementById("log");
+  el.textContent = msg;
+  el.className = cls;
+};
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+  return body;
+}
+
+function when(iso) {
+  return iso ? new Date(iso).toLocaleString() : "never";
+}
+
+// Build list rows with textContent (never innerHTML) so names can't inject markup.
+async function loadItems() {
+  const items = await api("/plaid/items");
+  const ul = document.getElementById("items");
+  ul.replaceChildren();
+  if (!items.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Nothing linked yet.";
+    ul.append(li);
+    return;
+  }
+  for (const item of items) {
+    const li = document.createElement("li");
+    const info = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = item.institution || "Linking…";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `Last synced: ${when(item.last_synced_at)}`;
+    info.append(name, meta);
+    const unlink = document.createElement("button");
+    unlink.textContent = "Unlink";
+    unlink.onclick = async () => {
+      if (!confirm(`Unlink ${item.institution}? Past data stays; syncing stops.`)) return;
+      try {
+        await api(`/plaid/items/${item.id}`, { method: "DELETE" });
+        log(`Unlinked ${item.institution}.`, "ok");
+        loadItems();
+      } catch (e) { log(`Couldn't unlink: ${e.message}`, "bad"); }
+    };
+    li.append(info, unlink);
+    ul.append(li);
+  }
+}
+
+async function startLink(kind) {
+  log("Opening Plaid…");
+  let token;
+  try {
+    ({ link_token: token } = await api("/plaid/link-token", {
+      method: "POST", body: JSON.stringify({ kind }),
+    }));
+  } catch (e) { return log(`Couldn't start linking: ${e.message}`, "bad"); }
+
+  const handler = Plaid.create({
+    token,
+    onSuccess: async (public_token, metadata) => {
+      const bank = metadata.institution ? metadata.institution.name : "your bank";
+      log(`Linked ${bank}. Syncing…`);
+      try {
+        const r = await api("/plaid/exchange", {
+          method: "POST", body: JSON.stringify({ public_token }),
+        });
+        if (r.synced) {
+          log(`${bank}: ${r.accounts} accounts, ${r.new_transactions} transactions synced.`, "ok");
+        } else {
+          log(`${bank} linked, but the first sync failed (${r.error}). Try "Sync now" in a minute.`, "bad");
+        }
+      } catch (e) { log(`Linking failed: ${e.message}`, "bad"); }
+      loadItems();
+    },
+    onExit: (err) => {
+      if (err) log(`Plaid closed: ${err.display_message || err.error_code}`, "bad");
+      else log("");
+    },
+  });
+  handler.open();
+}
+
+document.querySelectorAll("[data-kind]").forEach((b) => {
+  b.onclick = () => startLink(b.dataset.kind);
+});
+
+document.getElementById("sync").onclick = async (ev) => {
+  ev.target.disabled = true;
+  log("Syncing…");
+  try {
+    const { items } = await api("/plaid/sync", { method: "POST" });
+    const failed = items.filter((i) => !i.ok);
+    const fresh = items.reduce((n, i) => n + (i.new_transactions || 0), 0);
+    if (failed.length) {
+      log(`Synced with problems: ${failed.map((i) => `${i.institution} (${i.error})`).join(", ")}`, "bad");
+    } else {
+      log(`All synced. ${fresh} new transactions.`, "ok");
+    }
+  } catch (e) { log(`Sync failed: ${e.message}`, "bad"); }
+  ev.target.disabled = false;
+  loadItems();
+};
+
+api("/plaid/status")
+  .then(({ env }) => {
+    if (env === "sandbox") document.getElementById("sandbox-banner").style.display = "block";
+  })
+  .catch((e) => log(`Server not ready: ${e.message}`, "bad"));
+loadItems().catch(() => {});
+</script>
+</body>
+</html>
