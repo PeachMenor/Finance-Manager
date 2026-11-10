@@ -15,7 +15,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Sync engine (re-runs never duplicate; balance history kept) + net-worth math, tested on fake banks
 - [x] 🤖 Plaid integration: balances, transactions, holdings, tested against a fake Plaid server
 - [x] 🤖 Splitwise integration: owed / owing, tested against a fake Splitwise server
-- [ ] 🧑 Review the fake-data demo and approve
+- [x] 🧑 Review the fake-data demo and approve (2026-11-10)
 - [ ] 🧑🤖 Live check against Plaid's sandbox (needs sandbox keys)
 - [ ] 🤖 Plaid Link page so you can connect real logins
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
