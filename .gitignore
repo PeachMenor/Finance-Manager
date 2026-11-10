@@ -1,0 +1,45 @@
+# ---- Secrets & credentials (never commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+client_secret*.json
+token*.json
+service-account*.json
+secrets/
+.secrets/
+
+# ---- Personal financial data (never commit) ----
+data/
+exports/
+statements/
+*.csv
+*.xlsx
+*.xls
+*.ofx
+*.qfx
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ---- Node ----
+node_modules/
+dist/
+build/
+
+# ---- OS / editor ----
+.DS_Store
+.vscode/
+.idea/
+*.log
