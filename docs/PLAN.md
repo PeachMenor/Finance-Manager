@@ -3,7 +3,7 @@
 **Goal:** one app that shows your whole financial picture: net worth, every account, who owes whom, investments, credit card debt, expenses against budgets, and a monthly report.
 
 **Status:** Approved 2026-11-10. Stage 1 in progress.
-**Out of scope for now:** Phase 2 (the investment strategy quiz and auto-investing).
+**Out of scope for now:** Phase 2 (the investment strategy quiz and auto-investing), and the per-stock investments tab with daily prices (added after Phase 1 works).
 
 Legend: 🧑 = needs you · 🤖 = Claude can do it alone
 
@@ -73,14 +73,18 @@ Finance-Manager/
 
 ## Stage 2 — Dashboard
 
-**Outcome:** one screen with your live numbers.
+**Outcome:** one simple screen showing everything at once. These are must-haves:
 
-- **Net worth** = cash + investments − credit card and other debt, updated as prices change 🤖
-- **Accounts:** balance per bank account 🤖
-- **People:** what you owe and what you're owed (from Splitwise) 🤖
-- **Investments tab:** each stock/ETF with quantity, today's price, today's change, total value, gain/loss 🤖
+- **Net worth** = cash + savings + investment account balances − credit cards − loans ± Splitwise 🤖
+- **Accounts:** balance per bank, savings and investment account (investment accounts as one total each, as reported on each sync) 🤖
+- **Loans and card debt:** what's owed on each card and loan 🤖
+- **Expenses:** this month's spending, monthly and annual expenses (filled in by Stage 3) 🤖
+- **Savings:** savings balances and how much you saved this month 🤖
+- **People:** what you owe and what you're owed (from Splitwise screenshots) 🤖
 - Net worth history chart 🤖
 - Review the look and tell me what to change 🧑
+
+**Later (not Phase 1 must-have):** a separate investments tab with each stock/ETF, daily prices, daily change and gain/loss. Holdings already sync, so it can be added without rework.
 
 ## Stage 3 — Debts and expenses
 
