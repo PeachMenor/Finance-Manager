@@ -32,11 +32,19 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    ```bash
    pytest
    ```
-6. Start the server (from `backend/`):
+6. Try it with fake data (no keys needed). This loads demo banks and Splitwise balances into a separate `data/demo.db` and prints your "net worth" with a self-check:
+   ```bash
+   python -m app.cli demo
+   ```
+7. Optional, once you have Plaid **sandbox** keys in `.env` (`PLAID_ENV=sandbox`): link Plaid's fake test bank and sync it:
+   ```bash
+   python -m app.cli plaid-sandbox-check
+   ```
+8. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload
    ```
-   Open http://127.0.0.1:8000/docs to see the API. Your database is created at `data/finance.db`.
+   Open http://127.0.0.1:8000/docs to see the API (`/accounts`, `/summary`). Your database is created at `data/finance.db`.
 
 ## Project layout
 

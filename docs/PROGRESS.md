@@ -12,8 +12,12 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Report what can be synced, imported, or not connected ([INTEGRATIONS.md](INTEGRATIONS.md))
 - [ ] 🧑 Sign up for Plaid (Trial plan) and Splitwise API; put keys in `.env`
 - [ ] 🧑 Link bank logins on the aggregator's own page
-- [ ] 🤖 Plaid integration (Link page + sync), tested on Plaid's fake sandbox data first
-- [ ] 🤖 Splitwise integration
+- [x] 🤖 Sync engine (re-runs never duplicate; balance history kept) + net-worth math, tested on fake banks
+- [x] 🤖 Plaid integration: balances, transactions, holdings, tested against a fake Plaid server
+- [x] 🤖 Splitwise integration: owed / owing, tested against a fake Splitwise server
+- [ ] 🧑 Review the fake-data demo and approve
+- [ ] 🧑🤖 Live check against Plaid's sandbox (needs sandbox keys)
+- [ ] 🤖 Plaid Link page so you can connect real logins
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
 - [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync
