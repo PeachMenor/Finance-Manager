@@ -3,8 +3,12 @@
     python -m app.cli demo                  load fake banks + fake Splitwise, print summary
     python -m app.cli plaid-sandbox-check   link a fake Plaid sandbox bank and sync it
                                             (needs PLAID_CLIENT_ID / PLAID_SECRET, PLAID_ENV=sandbox)
+    python -m app.cli people-import FILE    load who-owes-whom balances from a JSON file
+                                            (e.g. data/splitwise_balances.json, read off a screenshot)
+    python -m app.cli summary               print net worth from your real database
 
-Both write to data/demo.db, a separate database, so your real data is never touched.
+`demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
+real data is never touched. `people-import` and `summary` use your real database.
 """
 
 import argparse
@@ -16,11 +20,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_DB = REPO_ROOT / "data" / "demo.db"
 
 
-def _use_fresh_demo_db():
-    """Point the app at data/demo.db and wipe it. Must run before importing app.db."""
+def _point_at_demo_db() -> None:
+    """Make the app use data/demo.db. Must run before ANY `app.*` import, because the
+    database engine is created the first time `app.db.base` is imported (even
+    indirectly, e.g. via `app.integrations.plaid`)."""
     os.environ["FM_DATABASE_PATH"] = str(DEMO_DB)
+
+
+def _use_fresh_demo_db():
+    """Wipe and recreate data/demo.db. Refuses to run against any other database."""
     from app.db.base import Base, engine, init_db
 
+    # Safety guard: this drops every table, so never let it touch your real data.
+    if Path(engine.url.database).resolve() != DEMO_DB.resolve():
+        raise RuntimeError(f"Refusing to wipe {engine.url.database}: not the demo database.")
     Base.metadata.drop_all(engine)
     init_db(engine)
 
@@ -30,14 +43,16 @@ def _print_summary(session) -> None:
     from app.services.networth import compute_net_worth
 
     s = compute_net_worth(session)
-    width = 38
+    width = 44
     print("\nACCOUNTS")
     for a in s.accounts:
         sign = "−" if a.is_liability else " "
         note = "" if a.included else "  (not counted)"
         label = f"{a.institution} · {a.name}"
+        if len(label) > width:
+            label = label[: width - 1] + "…"
         print(f"  {label:<{width}} {a.kind:<12} {sign}{format_cents(a.balance_cents):>12}{note}")
-    print("\nPEOPLE (Splitwise)")
+    print("\nPEOPLE (who owes whom)")
     if not s.people:
         print("  (none)")
     for name, cents in s.people:
@@ -103,15 +118,70 @@ def cmd_plaid_sandbox_check() -> int:
     return 0
 
 
+def cmd_people_import(path: str) -> int:
+    """Replace who-owes-whom balances with the contents of a JSON file.
+
+    File format (positive amount = they owe you, negative = you owe them):
+        {"as_of": "2026-11-14",
+         "people": [{"name": "Alex", "amount": 40.00}, {"name": "Sam", "amount": -25.50}]}
+    Keep the file in data/ (git-ignored): it holds personal names and amounts.
+    """
+    import json
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import DataSource
+    from app.integrations.base import FetchedPersonBalance
+    from app.services.money import to_cents
+    from app.services.sync import sync_person_balances
+
+    data = json.loads(Path(path).read_text())
+    balances = [
+        FetchedPersonBalance(
+            external_id=p["name"].strip().lower(),
+            name=p["name"].strip(),
+            amount_cents=to_cents(str(p["amount"])),
+            currency=p.get("currency", "USD"),
+        )
+        for p in data["people"]
+    ]
+    init_db()
+    with SessionLocal() as session:
+        kept = sync_person_balances(session, DataSource.SPLITWISE, balances)
+        print(f"Imported {kept} balances (as of {data.get('as_of', 'unknown date')}).")
+        _print_summary(session)
+    return 0
+
+
+def cmd_summary() -> int:
+    from app.db.base import SessionLocal, init_db
+
+    init_db()
+    with SessionLocal() as session:
+        _print_summary(session)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("demo", help="load fake data and print the summary")
     sub.add_parser("plaid-sandbox-check", help="sync a fake Plaid sandbox bank")
+    imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
+    imp.add_argument("file")
+    sub.add_parser("summary", help="print net worth from your real database")
     args = parser.parse_args(argv)
+
+    # Choose the database before anything imports app.db (see _point_at_demo_db).
+    if args.command in ("demo", "plaid-sandbox-check"):
+        _point_at_demo_db()
+
     if args.command == "demo":
         return cmd_demo()
-    return cmd_plaid_sandbox_check()
+    if args.command == "plaid-sandbox-check":
+        return cmd_plaid_sandbox_check()
+    if args.command == "people-import":
+        return cmd_people_import(args.file)
+    return cmd_summary()
 
 
 if __name__ == "__main__":

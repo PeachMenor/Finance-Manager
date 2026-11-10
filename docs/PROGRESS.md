@@ -14,9 +14,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [ ] 🧑 Link bank logins on the aggregator's own page
 - [x] 🤖 Sync engine (re-runs never duplicate; balance history kept) + net-worth math, tested on fake banks
 - [x] 🤖 Plaid integration: balances, transactions, holdings, tested against a fake Plaid server
-- [x] 🤖 Splitwise integration: owed / owing, tested against a fake Splitwise server
+- [x] 🤖 Splitwise integration: owed / owing, tested against a fake Splitwise server (API needs Pro, so unused for now)
+- [x] 🤖 Weekly Splitwise screenshot import (`people-import`)
 - [x] 🧑 Review the fake-data demo and approve (2026-11-10)
-- [ ] 🧑🤖 Live check against Plaid's sandbox (needs sandbox keys)
+- [x] 🧑🤖 Live check against Plaid's sandbox: 14 accounts, transactions and 13 holdings synced; totals verified
 - [ ] 🤖 Plaid Link page so you can connect real logins
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
 - [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
@@ -47,3 +48,5 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Each data source is a separate module behind one interface | Add or swap providers (SimpleFIN, Plaid, CSV) without touching the rest |
 | 2026-11-10 | Plaid is the primary aggregator; SimpleFIN is the backup | Good investment-holdings coverage; free Trial plan covers up to 10 logins |
 | 2026-11-10 | Unvested RSUs are shown separately and excluded from net worth by default | They aren't owned until they vest |
+| 2026-11-10 | Splitwise balances come from a weekly screenshot, not the API | The API requires a paid Pro subscription |
+| 2026-11-10 | Demo commands refuse to wipe any database except `data/demo.db` | A sandbox run once wrote to the real database file; guard prevents it |

@@ -40,7 +40,16 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    ```bash
    python -m app.cli plaid-sandbox-check
    ```
-8. Start the server (from `backend/`):
+8. Record who owes whom (Splitwise). Create `data/splitwise_balances.json` (git-ignored) from your Splitwise friends list; positive = they owe you, negative = you owe them:
+   ```json
+   {"as_of": "2026-11-13", "people": [{"name": "Alex", "amount": 40.00}, {"name": "Sam", "amount": -25.50}]}
+   ```
+   Then load it and see your totals:
+   ```bash
+   python -m app.cli people-import ../data/splitwise_balances.json
+   python -m app.cli summary
+   ```
+9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload
    ```
