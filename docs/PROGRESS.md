@@ -8,12 +8,14 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Repo, `.gitignore` for secrets/data, `.env.example`, README skeleton
 - [x] 🧑 Approve Phase 1 plan
 - [x] 🤖 Backend skeleton: config, database, data models, health API, tests
-- [ ] 🧑 List where your money lives (in chat, not in the repo)
-- [ ] 🤖 Report what can be synced, imported, or not connected
-- [ ] 🧑 Sign up for the chosen aggregator and Splitwise API; put keys in `.env`
+- [x] 🧑 List where your money lives (kept in git-ignored `data/`, not in the repo)
+- [x] 🤖 Report what can be synced, imported, or not connected ([INTEGRATIONS.md](INTEGRATIONS.md))
+- [ ] 🧑 Sign up for Plaid (Trial plan) and Splitwise API; put keys in `.env`
 - [ ] 🧑 Link bank logins on the aggregator's own page
-- [ ] 🤖 Sync code for each integration
-- [ ] 🤖 CSV import for unsupported accounts
+- [ ] 🤖 Plaid integration (Link page + sync), tested on Plaid's fake sandbox data first
+- [ ] 🤖 Splitwise integration
+- [ ] 🤖 OFX/CSV statement import for unsupported cards
+- [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync
 - [ ] 🧑🤖 Annual budgets questionnaire
 
@@ -39,3 +41,5 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Python/FastAPI backend, React dashboard, SQLite | Simple local setup; Python suits Phase 2 analysis |
 | 2026-11-10 | Money stored as integer cents | Avoids floating-point rounding errors in sums |
 | 2026-11-10 | Each data source is a separate module behind one interface | Add or swap providers (SimpleFIN, Plaid, CSV) without touching the rest |
+| 2026-11-10 | Plaid is the primary aggregator; SimpleFIN is the backup | Good investment-holdings coverage; free Trial plan covers up to 10 logins |
+| 2026-11-10 | Unvested RSUs are shown separately and excluded from net worth by default | They aren't owned until they vest |
