@@ -62,6 +62,7 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
             "kind": a.kind.value,
             "balance_cents": a.balance_cents,
             "currency": a.currency,
+            "hidden": bool(a.hidden),
         }
         for a in accounts
     ]

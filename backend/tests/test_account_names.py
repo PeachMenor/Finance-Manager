@@ -74,3 +74,21 @@ def test_existing_database_gets_new_columns(tmp_path):
     assert {"nickname", "mask"} <= cols
     with engine.connect() as c:
         assert c.exec_driver_sql("SELECT name, balance_cents FROM accounts").one() == ("Old", 5)
+
+
+def test_hidden_account_still_counts_and_survives_sync(session, capsys):
+    from app.services.networth import compute_net_worth
+
+    sync_accounts(session, DataSource.PLAID, _card())  # a card owing 100 cents
+    acct_id = session.scalar(select(Account)).id
+    assert cli.cmd_set_hidden(acct_id, True) == 0
+    sync_accounts(session, DataSource.PLAID, _card())  # re-sync must not unhide
+    session.expire_all()
+    s = compute_net_worth(session)
+    assert s.accounts[0].hidden is True
+    assert s.liabilities_cents == 100  # hidden, but still counted
+    cli._print_summary(session)
+    assert "1 hidden account(s) not listed but still counted" in capsys.readouterr().out
+    assert cli.cmd_set_hidden(acct_id, False) == 0
+    session.expire_all()
+    assert session.get(Account, acct_id).hidden is False

@@ -99,6 +99,9 @@ class Account(Base):
     balance_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # False for things you track but don't own yet (e.g. unvested RSUs).
     include_in_net_worth: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Hidden accounts are left off dashboard lists but STILL count toward net worth,
+    # so money landing in one later is never silently dropped. Sync keeps them updated.
+    hidden: Mapped[bool | None] = mapped_column(Boolean, default=False)
 
     institution: Mapped[Institution | None] = relationship(back_populates="accounts")
     snapshots: Mapped[list["BalanceSnapshot"]] = relationship(back_populates="account")

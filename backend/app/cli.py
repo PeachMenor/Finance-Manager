@@ -8,6 +8,7 @@
     python -m app.cli summary               print net worth from your real database
     python -m app.cli accounts              list accounts with their ids
     python -m app.cli rename ID "NAME"      give an account your own name ("" to clear)
+    python -m app.cli hide ID / unhide ID   leave an account off lists (still counted)
 
 `demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
 real data is never touched. `people-import` and `summary` use your real database.
@@ -47,13 +48,16 @@ def _print_summary(session) -> None:
     s = compute_net_worth(session)
     width = 44
     print("\nACCOUNTS")
-    for a in s.accounts:
+    hidden = [a for a in s.accounts if a.hidden]
+    for a in (a for a in s.accounts if not a.hidden):
         sign = "−" if a.is_liability else " "
         note = "" if a.included else "  (not counted)"
         label = f"{a.institution} · {a.name}"
         if len(label) > width:
             label = label[: width - 1] + "…"
         print(f"  {label:<{width}} {a.kind:<12} {sign}{format_cents(a.balance_cents):>12}{note}")
+    if hidden:
+        print(f"  ({len(hidden)} hidden account(s) not listed but still counted)")
     print("\nPEOPLE (who owes whom)")
     if not s.people:
         print("  (none)")
@@ -173,7 +177,8 @@ def cmd_accounts() -> int:
     with SessionLocal() as session:
         for a in session.scalars(select(Account).order_by(Account.id)):
             inst = a.institution.name if a.institution else "-"
-            print(f"  {a.id:>3}  {inst:<20} {a.display_name:<36} {a.kind.value}")
+            flag = "  (hidden)" if a.hidden else ""
+            print(f"  {a.id:>3}  {inst:<20} {a.display_name:<36} {a.kind.value}{flag}")
     return 0
 
 
@@ -193,6 +198,23 @@ def cmd_rename(account_id: int, nickname: str) -> int:
     return 0
 
 
+def cmd_set_hidden(account_id: int, hidden: bool) -> int:
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Account
+
+    init_db()
+    with SessionLocal() as session:
+        acct = session.get(Account, account_id)
+        if acct is None:
+            print(f"No account with id {account_id}. Run `python -m app.cli accounts`.")
+            return 1
+        acct.hidden = hidden
+        session.commit()
+        state = "hidden (still counted in net worth)" if hidden else "shown"
+        print(f"{acct.display_name} is now {state}.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -205,6 +227,9 @@ def main(argv: list[str] | None = None) -> int:
     ren = sub.add_parser("rename", help="give an account your own name")
     ren.add_argument("account_id", type=int)
     ren.add_argument("nickname")
+    for cmd in ("hide", "unhide"):
+        sp = sub.add_parser(cmd, help=f"{cmd} an account on the dashboard")
+        sp.add_argument("account_id", type=int)
     args = parser.parse_args(argv)
 
     # Choose the database before anything imports app.db (see _point_at_demo_db).
@@ -219,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_people_import(args.file)
     if args.command == "accounts":
         return cmd_accounts()
+    if args.command in ("hide", "unhide"):
+        return cmd_set_hidden(args.account_id, args.command == "hide")
     if args.command == "rename":
         return cmd_rename(args.account_id, args.nickname)
     return cmd_summary()

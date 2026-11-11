@@ -28,6 +28,7 @@ class AccountLine:
     balance_cents: int
     is_liability: bool
     included: bool
+    hidden: bool = False  # left off lists, still counted
 
 
 @dataclass
@@ -66,6 +67,7 @@ def compute_net_worth(session: Session, currency: str = "USD") -> NetWorthSummar
                 balance_cents=a.balance_cents,
                 is_liability=liability,
                 included=a.include_in_net_worth,
+                hidden=bool(a.hidden),
             )
         )
         if not a.include_in_net_worth:

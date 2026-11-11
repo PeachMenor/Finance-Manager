@@ -83,5 +83,6 @@ def test_health_and_accounts_endpoints(session):
             "kind": "checking",
             "balance_cents": 15000,
             "currency": "USD",
+            "hidden": False,
         }
     ]
