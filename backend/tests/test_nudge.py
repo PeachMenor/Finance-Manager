@@ -105,3 +105,29 @@ def test_confirm_link():
     assert f"{page}#paid" in text  # one tap records PAID
     assert text.splitlines()[-1].endswith(page)  # plain link for a partial amount
     assert "No confirm page set" in sms_with_confirm_link("x", None)
+
+
+def test_settle_confirmed_marks_paid_syncs_and_texts(session, tmp_path, monkeypatch, capsys):
+    from app import cli
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    sent, synced = [], []
+    monkeypatch.setattr(cli, "send_text", lambda m: sent.append(m) or True)
+    monkeypatch.setattr(cli, "cmd_sync", lambda bank: synced.append(bank) or 0)
+    _people(session, [("Sam Lee", -12_345)])
+    assert cli.main(["nudge", "--sms", "--send"]) == 0
+    assert "pay Sam Lee" in sent[-1]
+    assert cli.main(["settle-confirmed"]) == 0
+    assert synced == ["chase"]
+    assert "all settled with them" in sent[-1] and "Chase synced" in sent[-1]
+    assert not (tmp_path / "pending_settle.json").exists()
+    assert cli.main(["settle-confirmed"]) == 1  # nothing waiting: nothing marked
+    assert synced == ["chase"]
+
+
+def test_send_text_needs_a_phone(tmp_path, monkeypatch, capsys):
+    from app import cli
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    assert cli.send_text("hi") is False
+    assert "sms_phone" in capsys.readouterr().out

@@ -274,7 +274,41 @@ def sms_with_confirm_link(headline: str, page: str | None) -> str:
                       f"Paid part, or not yet? {base}"])
 
 
-def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
+def send_text(message: str) -> bool:
+    """Text your own phone from this Mac's Messages app (iMessage).
+
+    Used instead of email-to-text because Gmail wraps every link in a
+    google.com redirect page. The number is "sms_phone" in the private
+    data/contact.json. Returns True if Messages accepted it.
+    """
+    import json
+    import subprocess
+
+    from app.config import data_dir
+
+    p = data_dir() / "contact.json"
+    phone = json.loads(p.read_text()).get("sms_phone") if p.exists() else None
+    if not phone:
+        print("No phone set: add sms_phone to data/contact.json.")
+        return False
+    script = (
+        "on run argv\n with timeout of 45 seconds\n tell application \"Messages\"\n"
+        "  set svc to 1st account whose service type = iMessage\n"
+        "  send (item 1 of argv) to participant (item 2 of argv) of svc\n"
+        " end tell\n end timeout\nend run"
+    )
+    r = subprocess.run(["osascript", "-e", script, message, phone], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("Messages couldn't send: " + r.stderr.strip())
+    return r.returncode == 0
+
+
+def cmd_text_me(message: str) -> int:
+    """Send `message` to your own phone (see send_text)."""
+    return 0 if send_text(message) else 1
+
+
+def cmd_nudge(pay_one: bool = False, sms: bool = False, send: bool = False) -> int:
     """Print the weekly settle-up reminder (used by the scheduled phone nudge).
 
     With --sms: print a short text with a tap-to-confirm link, and remember who it
@@ -295,15 +329,17 @@ def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
             pending = data_dir() / "pending_settle.json"
             if not who:
                 pending.unlink(missing_ok=True)
-                print("Finance: you don't owe anyone on Splitwise right now.")
-                return 0
+                text = "Finance: you don't owe anyone on Splitwise right now."
+                print(text)
+                return 0 if not send or send_text(text) else 1
             asked = datetime.now(timezone.utc)
             pending.write_text(json.dumps({"id": "settle-" + asked.strftime("%Y%m%dT%H%M%S"),
                                            "name": who[0], "amount": who[1] / 100,
                                            "asked_at": asked.isoformat()}))
-            print(sms_with_confirm_link(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week.",
-                                        _confirm_page()))
-            return 0
+            text = sms_with_confirm_link(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week.",
+                                         _confirm_page())
+            print(text)
+            return 0 if not send or send_text(text) else 1
         text = build_pay_one(session) if pay_one else build_nudge(session)
         print(text or "Splitwise: all settled up.")
         if pay_one:
@@ -587,6 +623,43 @@ def cmd_report(month: str | None, previous: bool) -> int:
     return 0
 
 
+def cmd_settle_confirmed(amount: str | None) -> int:
+    """Run only after you confirmed paying the person in the pending reminder:
+    record the payment (people-settle --pending), sync Chase so the payment
+    shows up, and text you what changed."""
+    import contextlib
+    import io
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = cmd_settle_pending(amount)
+    line = out.getvalue().strip()
+    print(line)
+    if code != 0:
+        return code
+    with contextlib.redirect_stdout(io.StringIO()):
+        synced = cmd_sync("chase") == 0
+    send_text("Finance: " + line + (" Chase synced." if synced else " (Chase sync failed; it'll catch up on the next sync.)"))
+    return 0
+
+
+def cmd_settle_pending(amount: str | None) -> int:
+    """people-settle for the person in the waiting reminder (data/pending_settle.json)."""
+    import json
+
+    from app.config import data_dir
+
+    pending = data_dir() / "pending_settle.json"
+    if not pending.exists():
+        print("Nothing pending: no reminder is waiting for a reply.")
+        return 1
+    who = json.loads(pending.read_text())
+    code = cmd_people_settle(who["name"], amount)
+    if code == 0:
+        pending.unlink()
+    return code
+
+
 def cmd_people_settle(name: str, amount: str | None) -> int:
     """Record that you paid someone back on Splitwise (only after you confirm it).
 
@@ -834,6 +907,45 @@ def cmd_resync_history() -> int:
     return 0
 
 
+def cmd_sync(bank: str | None) -> int:
+    """Sync linked banks now (all of them, or only logins whose name contains `bank`)."""
+    from sqlalchemy import select
+
+    from app.config import get_settings  # noqa: F401  (loads .env)
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import PlaidItem
+    from app.integrations.plaid import PlaidClient, PlaidError
+    from app.services.autosync import SYNC_LOCK, sync_everything
+    from app.services.loans import refresh_manual_loans
+    from app.services.sync import sync_plaid_item
+
+    init_db()
+    client = PlaidClient.from_env()
+    with SessionLocal() as session:
+        if not bank:
+            for r in sync_everything(session, client):
+                print(f"  {r.institution}: {'ok' if r.ok else r.error}")
+            return 0
+        items = [i for i in session.scalars(select(PlaidItem)).all()
+                 if bank.lower() in (i.institution_name or "").lower()]
+        if not items:
+            print(f"No linked bank matches {bank!r}.")
+            return 1
+        ok = True
+        with SYNC_LOCK:
+            for item in items:
+                name = item.institution_name
+                try:
+                    r = sync_plaid_item(session, client, item)
+                    print(f"  {name}: ok ({r.new_transactions} new)")
+                except PlaidError as e:
+                    session.rollback()
+                    ok = False
+                    print(f"  {name}: {e.error_code}")
+            refresh_manual_loans(session)
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -849,7 +961,12 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("--amount", help="if you paid only part of it")
     nu = sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
-    nu.add_argument("--sms", action="store_true", help="short text asking for a YES reply; remembers who it asked about")
+    nu.add_argument("--sms", action="store_true", help="short text with a confirm link; remembers who it asked about")
+    nu.add_argument("--send", action="store_true", help="with --sms: also text it to your phone via Messages")
+    tm = sub.add_parser("text-me", help="text your own phone via the Messages app")
+    tm.add_argument("message")
+    sc = sub.add_parser("settle-confirmed", help="after you confirm: mark paid, sync Chase, text you")
+    sc.add_argument("--amount", help="if you paid only part")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
     sub.add_parser("year", help="budget year so far: income, expenses, saved, invested")
     rp = sub.add_parser("report", help="monthly PDF report (saved in data/reports/)")
@@ -903,6 +1020,8 @@ def main(argv: list[str] | None = None) -> int:
                     "(e.g. after a principal-only payment), e.g. 12.34")
     sub.add_parser("loans", help="show hand-entered loans")
     sub.add_parser("resync-history", help="re-download all transaction history from Plaid")
+    sy = sub.add_parser("sync", help="sync linked banks now")
+    sy.add_argument("--bank", help="only logins whose name contains this, e.g. chase")
     for cmd, text in (("exclude", "stop counting an account in net worth"),
                       ("include", "count an account in net worth again")):
         sp = sub.add_parser(cmd, help=text)
@@ -939,24 +1058,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "budgets":
         return cmd_budgets()
     if args.command == "nudge":
-        return cmd_nudge(args.pay_one, args.sms)
+        return cmd_nudge(args.pay_one, args.sms, args.send)
+    if args.command == "text-me":
+        return cmd_text_me(args.message)
+    if args.command == "settle-confirmed":
+        return cmd_settle_confirmed(args.amount)
     if args.command == "splitwise-import-expenses":
         return cmd_splitwise_import_expenses(args.file)
     if args.command == "people-settle":
         if args.pending:
-            import json
-
-            from app.config import data_dir
-
-            pending = data_dir() / "pending_settle.json"
-            if not pending.exists():
-                print("Nothing pending: no reminder is waiting for a reply.")
-                return 1
-            who = json.loads(pending.read_text())
-            code = cmd_people_settle(who["name"], args.amount)
-            if code == 0:
-                pending.unlink()
-            return code
+            return cmd_settle_pending(args.amount)
         if not args.name:
             print("Give a name, or --pending.")
             return 1
@@ -971,6 +1082,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_loans()
     if args.command == "resync-history":
         return cmd_resync_history()
+    if args.command == "sync":
+        return cmd_sync(args.bank)
     if args.command in ("exclude", "include"):
         return cmd_set_counted(args.account_id, args.command == "include")
     if args.command in ("hide", "unhide"):
