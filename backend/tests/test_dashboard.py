@@ -131,3 +131,14 @@ def test_dashboard_includes_spending_months(session):
     d = build_dashboard(session)
     assert d["spending"]["categories"][0] == "Rent"
     assert len(d["spending"]["months"]) == 6
+
+
+def test_dashboard_reports_shared_coverage(session):
+    from app.db.models import SplitExpense
+
+    _demo(session)
+    assert build_dashboard(session)["spending"]["shared_from"] is None
+    session.add(SplitExpense(external_id="x", spent_on=date(2026, 11, 1), group_name="g", description="Rent",
+                             cost_cents=100, you_paid_cents=100, share_cents=50, category="Rent"))
+    session.commit()
+    assert build_dashboard(session)["spending"]["shared_from"] == "2026-11-01"

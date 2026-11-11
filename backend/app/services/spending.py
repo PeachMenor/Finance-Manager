@@ -19,9 +19,16 @@ income) and the rent charge. The credit is treated as reducing Rent, which
 cancels one of the two rent entries so rent counts exactly once. (Money from
 housemates labelled rental income would also, correctly, reduce Rent.)
 
-Known limits until Stage 3:
-- Shared purchases count in full; your Splitwise share is applied in Stage 3.
-- Loan payments are all treated as transfers; their interest isn't counted yet.
+Shared expenses (imported from Splitwise, see `SplitExpense`):
+- You paid it: the matching bank/card transaction (same amount, dated up to 31
+  days before to 7 days after the Splitwise date, closest first) counts only YOUR
+  share. The rest is money owed to you, not spending.
+- Someone else paid: your share is added as spending in that month, even though
+  no charge appears in your accounts.
+- A paid expense with no matching transaction (e.g. paid from an unlinked
+  account) still adds your share, and is listed as unmatched for review.
+
+Known limit: loan payments are all treated as transfers; their interest isn't counted yet.
 """
 
 from collections import defaultdict
@@ -31,7 +38,9 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Transaction
+from datetime import timedelta
+
+from app.db.models import SplitExpense, Transaction
 
 # Display order is fixed so each category keeps the same colour everywhere.
 CATEGORIES = [
@@ -86,6 +95,45 @@ def _month_key(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
+MATCH_BEFORE_DAYS = 31  # Splitwise entries are often logged after the charge (e.g. last month's bill)
+MATCH_AFTER_DAYS = 7    # ...or a few days before it posts at the bank
+
+
+@dataclass
+class SplitMatch:
+    expense: SplitExpense
+    transaction: Transaction | None  # None: someone else paid, or no matching charge found
+
+
+def match_split_expenses(session: Session) -> list[SplitMatch]:
+    """Pair each shared expense you paid with the bank/card transaction that paid it.
+
+    A transaction is used at most once. Candidates: money out of exactly
+    `you_paid`, classified as spending, inside the date window; the closest date wins.
+    """
+    used: set[int] = set()
+    matches = []
+    for e in session.scalars(select(SplitExpense).order_by(SplitExpense.spent_on, SplitExpense.id)):
+        if e.you_paid_cents <= 0:
+            matches.append(SplitMatch(e, None))
+            continue
+        candidates = [
+            t for t in session.scalars(select(Transaction).where(
+                Transaction.amount_cents == -e.you_paid_cents,
+                Transaction.posted_on >= e.spent_on - timedelta(days=MATCH_BEFORE_DAYS),
+                Transaction.posted_on <= e.spent_on + timedelta(days=MATCH_AFTER_DAYS),
+            ))
+            if t.id not in used and classify(t.provider_category, t.provider_category_detailed,
+                                             t.amount_cents, t.category).kind == "spending"
+        ]
+        candidates.sort(key=lambda t: (abs((t.posted_on - e.spent_on).days), t.id))
+        best = candidates[0] if candidates else None
+        if best:
+            used.add(best.id)
+        matches.append(SplitMatch(e, best))
+    return matches
+
+
 def monthly_summary(session: Session, months: int = 6, today: date | None = None) -> list[dict]:
     """The last `months` calendar months (oldest first), each with:
     spending_cents, income_cents, saved_cents, savings_rate (None without income),
@@ -115,6 +163,25 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
         elif c.kind == "income":
             income[k] += t.amount_cents
 
+    # Shared expenses: count only your share.
+    unmatched = defaultdict(int)
+    for sm in match_split_expenses(session):
+        e = sm.expense
+        if sm.transaction is not None:
+            t = sm.transaction
+            k = _month_key(t.posted_on)  # adjust the month the charge actually landed in
+            if k in spending:
+                cat = classify(t.provider_category, t.provider_category_detailed, t.amount_cents, t.category).category
+                spending[k][cat] -= e.you_paid_cents  # take out the full charge...
+                spending[k][e.category] += e.share_cents  # ...and count only your share
+        else:
+            k = _month_key(e.spent_on)
+            if k in spending:
+                spending[k][e.category] += e.share_cents  # someone else paid (or unlinked account)
+                first_day[k] = min(first_day.get(k, e.spent_on), e.spent_on)
+                if e.you_paid_cents > 0:
+                    unmatched[k] += 1
+
     all_first = min(first_day.values()) if first_day else None
     out = []
     for k in keys:
@@ -129,6 +196,7 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
             "savings_rate": round((inc - total) / inc, 4) if inc > 0 else None,
             "by_category": by_cat,
             "has_data": k in first_day,
+            "unmatched_shared": unmatched[k],
             # The month history starts in, and the current month, are incomplete.
             "partial": k == keys[-1] or (all_first is not None and k == _month_key(all_first) and all_first.day > 1),
         })

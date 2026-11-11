@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem
+from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem, SplitExpense
 from app.services.loans import estimate_balance, months_to_payoff
 from app.services.networth import compute_net_worth
 from app.services.spending import CATEGORIES, monthly_summary
@@ -37,6 +37,10 @@ def _iso(dt: datetime | None) -> str | None:
     if dt.tzinfo is None:  # SQLite drops the zone; values are stored in UTC
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
+
+
+def _iso_date(d: date | None) -> str | None:
+    return d.isoformat() if d else None
 
 
 def _account_row(a: Account) -> dict:
@@ -138,5 +142,10 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "people": [{"name": n, "amount_cents": c} for n, c in s.people],
         "loans": loans,
         "history": net_worth_history(session),
-        "spending": {"categories": CATEGORIES, "months": monthly_summary(session, months=6, today=today)},
+        "spending": {
+            "categories": CATEGORIES,
+            "months": monthly_summary(session, months=6, today=today),
+            # Earliest Splitwise expense imported: shares are applied from here on.
+            "shared_from": _iso_date(session.scalar(select(func.min(SplitExpense.spent_on)))),
+        },
     }

@@ -65,6 +65,10 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    python -m app.cli loan-set ... --payment-match "Example Auto Finance" --posting-lag 1 \
      --unpaid-interest 0.00   # interest still owed on the statement date, if any
    ```
+   Shared expenses (so spending counts only your share): put them in `data/splitwise_expenses.json` (git-ignored) with what you paid and your share, then import. Each one you paid is matched to the bank or card charge automatically:
+   ```bash
+   python -m app.cli splitwise-import-expenses ../data/splitwise_expenses.json
+   ```
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

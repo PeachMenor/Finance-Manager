@@ -172,6 +172,58 @@ def cmd_people_import(path: str) -> int:
     return 0
 
 
+def cmd_splitwise_import_expenses(path: str) -> int:
+    """Replace stored shared expenses with the contents of a JSON file.
+
+    {"expenses": [{"date": "2026-11-01", "group": "Apartment", "description": "Rent",
+                   "cost": 2000.00, "you_paid": 2000.00, "your_share": 1000.00,
+                   "category": "Rent"}, ...]}
+    Keep the file in data/ (git-ignored).
+    """
+    import json
+    from datetime import date
+
+    from sqlalchemy import delete
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import SplitExpense
+    from app.services.money import format_cents, to_cents
+    from app.services.spending import CATEGORIES, match_split_expenses
+
+    data = json.loads(Path(path).read_text())
+    init_db()
+    with SessionLocal() as session:
+        session.execute(delete(SplitExpense))
+        for e in data["expenses"]:
+            if e["category"] not in CATEGORIES:
+                print(f"Unknown category {e['category']!r} (use one of {CATEGORIES})")
+                session.rollback()
+                return 1
+            session.add(SplitExpense(
+                external_id=f"{e.get('group', '')}|{e['date']}|{e['description']}|{e['cost']}",
+                spent_on=date.fromisoformat(e["date"]),
+                group_name=e.get("group"),
+                description=e["description"],
+                cost_cents=to_cents(str(e["cost"])),
+                you_paid_cents=to_cents(str(e["you_paid"])),
+                share_cents=to_cents(str(e["your_share"])),
+                category=e["category"],
+            ))
+        session.commit()
+        print(f"Imported {len(data['expenses'])} shared expenses.")
+        for m in match_split_expenses(session):
+            e = m.expense
+            if m.transaction is not None:
+                how = f"matched your charge on {m.transaction.posted_on} ({m.transaction.description})"
+            elif e.you_paid_cents:
+                how = "NO matching charge found (paid from an unlinked account?)"
+            else:
+                how = "paid by someone else"
+            print(f"  {e.spent_on} {e.description}: your share {format_cents(e.share_cents)} "
+                  f"of {format_cents(e.cost_cents)}; {how}")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -369,6 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
+    sx = sub.add_parser("splitwise-import-expenses", help="load shared expenses (your share) from JSON")
+    sx.add_argument("file")
     sub.add_parser("accounts", help="list accounts with their ids")
     ren = sub.add_parser("rename", help="give an account your own name")
     ren.add_argument("account_id", type=int)
@@ -407,6 +461,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_demo()
     if args.command == "plaid-sandbox-check":
         return cmd_plaid_sandbox_check()
+    if args.command == "splitwise-import-expenses":
+        return cmd_splitwise_import_expenses(args.file)
     if args.command == "people-import":
         return cmd_people_import(args.file)
     if args.command == "accounts":

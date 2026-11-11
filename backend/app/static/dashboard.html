@@ -197,7 +197,7 @@
         </div>
       </div>
     </div>
-    <p class="note">Spending counts purchases and bills across all accounts, minus refunds. Card payments, loan payments and transfers between your own accounts are left out so nothing counts twice. Shared purchases count in full for now; your Splitwise share is applied in Stage 3. Savings rate = (income − spending) ÷ income.</p>
+    <p class="note">Spending counts purchases and bills across all accounts, minus refunds. Card payments, loan payments and transfers between your own accounts are left out so nothing counts twice. <span id="shared-note"></span> Savings rate = (income − spending) ÷ income.</p>
   </section>
 
   <!-- Net worth over time -->
@@ -515,6 +515,10 @@ async function load() {
     // Default to the last complete month, else the current one.
     selectedMonth = ([...withData].reverse().find((m) => !m.partial) || withData.at(-1) || DATA.spending.months.at(-1)).month;
   }
+  const sf = DATA.spending.shared_from;
+  document.getElementById("shared-note").textContent = sf
+    ? `Shared expenses count only your share (from Splitwise, ${new Date(sf + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} onward); earlier shared purchases still count in full until imported.`
+    : "Shared purchases count in full until Splitwise expenses are imported.";
   renderKpis(DATA); renderBars(DATA); renderDonut(DATA); renderLine(DATA.history); renderLedger(DATA);
 }
 function showError(msg) { const e = document.getElementById("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }

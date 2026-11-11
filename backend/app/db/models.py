@@ -248,3 +248,26 @@ class LoanTerms(Base):
     unpaid_interest_cents: Mapped[int | None] = mapped_column(Integer)
 
     account: Mapped[Account] = relationship()
+
+
+class SplitExpense(Base):
+    """One shared expense from Splitwise, with YOUR part of it.
+
+    - you_paid_cents: what left your accounts for it (0 if someone else paid)
+    - share_cents:    your share of the cost, i.e. your real spending
+    Settle-ups ("A paid B") are not stored here: they're repayments, not spending.
+    Replaced wholesale on each import.
+    """
+
+    __tablename__ = "split_expenses"
+    __table_args__ = (UniqueConstraint("external_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(300))  # group|date|description|cost
+    spent_on: Mapped[date] = mapped_column(Date)
+    group_name: Mapped[str | None] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(String(300))
+    cost_cents: Mapped[int] = mapped_column(Integer)
+    you_paid_cents: Mapped[int] = mapped_column(Integer)
+    share_cents: Mapped[int] = mapped_column(Integer)
+    category: Mapped[str] = mapped_column(String(80))

@@ -43,7 +43,13 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑 Review the look (approved 2026-11-10; further tweaks as they come)
 
 ## Stage 3 — Debts and expenses
-- [ ] Not started
+- [x] 🤖 Shared expenses count only your share: Splitwise expenses matched to bank/card charges (same amount, up to 31 days before / 7 after); expenses others paid add your share; settle-ups stay transfers
+- [x] 🧑 First Splitwise exports and balances imported (November)
+- [ ] 🧑 Earlier months' Splitwise exports (so earlier rent and shared costs count only your share)
+- [ ] 🤖 Recurring monthly bills detection
+- [ ] 🤖 Annual expenses with monthly set-aside
+- [ ] 🤖 Credit card due dates and utilization
+- [ ] 🧑🤖 Category corrections you can make
 
 ## Stage 4 — Budgets
 - [ ] Not started
