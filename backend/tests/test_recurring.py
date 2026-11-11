@@ -84,3 +84,44 @@ def test_manual_bill_and_labels(session, tmp_path):
     assert "Storage" in bills and "Fruit2" in bills
     phone = bills["Phone plan share"]
     assert phone.source == "manual" and phone.next_expected == date(2026, 11, 20)
+
+
+def test_loans_and_saving_are_separate_from_bills(session):
+    from app.db.models import LoanTerms
+
+    a = _acct(session)
+    # Steady monthly transfer into an investment account
+    for i, d in enumerate([date(2026, 8, 20), date(2026, 9, 20), date(2026, 10, 20)]):
+        session.add(Transaction(account_id=a.id, external_id=f"inv{i}", posted_on=d, amount_cents=-25_000,
+                                description="BrokerCo", provider_category="TRANSFER_OUT",
+                                provider_category_detailed="TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS"))
+    # Ordinary transfers to friends are never recurring items
+    for i, d in enumerate([date(2026, 9, 1), date(2026, 10, 1)]):
+        session.add(Transaction(account_id=a.id, external_id=f"z{i}", posted_on=d, amount_cents=-4_000,
+                                description="Zelle to Pat", provider_category="TRANSFER_OUT",
+                                provider_category_detailed="TRANSFER_OUT_TRANSFER_OUT_FROM_APPS"))
+    loan = Account(name="Car loan", kind=AccountKind.LOAN, source=DataSource.MANUAL, external_id="l",
+                   balance_cents=500_000)
+    session.add(loan)
+    session.flush()
+    session.add(LoanTerms(account_id=loan.id, principal_cents=500_000, balance_as_of=date(2026, 11, 1),
+                          apr_bps=500, monthly_payment_cents=40_000, payment_day=15))
+    session.commit()
+    bills = detect_recurring(session, today=TODAY)
+    kinds = {b.name: b.kind for b in bills}
+    assert kinds == {"BrokerCo": "saving", "Car loan": "loan"}
+    car = next(b for b in bills if b.kind == "loan")
+    assert car.amount_cents == 40_000 and car.next_expected == date(2026, 11, 15)
+    assert monthly_total_cents(bills) == 0  # no bills
+    assert monthly_total_cents(bills, "saving") == 25_000 and monthly_total_cents(bills, None) == 65_000
+
+
+def test_label_can_set_category(session, tmp_path):
+    a = _acct(session)
+    _txns(session, a, "WashPay", [(date(2026, 9, 1), 1000), (date(2026, 10, 1), 1000), (date(2026, 11, 1), 1000)],
+          "FOOD_AND_DRINK")
+    session.commit()
+    labels = tmp_path / "l.json"
+    labels.write_text('{"labels": [{"merchant": "WashPay", "label": "Laundry", "category": "Bills & utilities"}]}')
+    b = _names(session, labels_path=labels)["Laundry"]
+    assert b.category == "Bills & utilities"

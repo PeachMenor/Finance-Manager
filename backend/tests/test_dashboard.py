@@ -146,4 +146,5 @@ def test_dashboard_reports_shared_coverage(session):
 
 def test_dashboard_includes_recurring(session):
     d = build_dashboard(session)
-    assert d["recurring"] == {"monthly_total_cents": 0, "bills": []}
+    assert d["recurring"]["bills"] == [] and d["recurring"]["all_monthly_cents"] == 0
+    assert d["recurring"]["totals"] == {"bill": 0, "loan": 0, "saving": 0}

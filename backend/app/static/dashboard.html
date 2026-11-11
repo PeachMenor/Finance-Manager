@@ -108,8 +108,9 @@
   .legend .pct { color: var(--text-muted); font-size: 12px; min-width: 38px; text-align: right; }
 
   /* Recurring bills */
-  .bills { columns: 2; column-gap: 40px; }
+  .bills { columns: 2; column-gap: 40px; margin-bottom: 16px; }
   @media (max-width: 760px) { .bills { columns: 1; } }
+  .bill-group-head { display: flex; justify-content: space-between; margin: 14px 0 4px; }
   .bills li { break-inside: avoid; }
   .bills .meta { font-size: 12px; color: var(--text-muted); }
   .bills li.inactive { opacity: .55; }
@@ -213,8 +214,8 @@
       <h2>Subscriptions &amp; bills</h2>
       <span class="small muted" id="bills-total"></span>
     </div>
-    <ul class="rows bills" id="bills"></ul>
-    <p class="note">Found automatically: charges from the same merchant, about a month apart, at the same price (one price change allowed). Shared bills show your share.</p>
+    <div id="bills"></div>
+    <p class="note">Found automatically: charges from the same merchant, about a month apart, at the same price (one price change allowed). Shared bills show your share. Loan payments and investing aren't spending, but they leave your accounts every month.</p>
   </section>
 
   <!-- Net worth over time -->
@@ -479,18 +480,30 @@ function renderLine(history) {
 
 // ---------- Recurring bills ----------
 function renderBills(d) {
-  const r = d.recurring, ul = document.getElementById("bills");
-  ul.replaceChildren();
+  const r = d.recurring, box = document.getElementById("bills");
+  box.replaceChildren();
   document.getElementById("bills-total").textContent =
-    `${money(r.monthly_total_cents)} a month · ${money0(r.monthly_total_cents * 12)} a year`;
-  if (!r.bills.length) { ul.append(el("li", { className: "zero" }, "None found yet.")); return; }
+    `${money(r.all_monthly_cents)} leaves your accounts each month`;
+  if (!r.bills.length) { box.append(el("p", { className: "zero" }, "None found yet.")); return; }
   const shortDate = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  for (const b of r.bills) {
-    const meta = [b.account, b.category, b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null]
-      .filter(Boolean).join(" · ");
-    ul.append(el("li", { className: b.active ? "" : "inactive" },
-      el("div", { className: "name" }, el("div", { textContent: b.name }), el("div", { className: "meta", textContent: meta })),
-      el("div", { className: "amt num", textContent: money(b.amount_cents) })));
+  const groups = [["bill", "Bills & subscriptions"], ["loan", "Loan payments"], ["saving", "Saving & investing"]];
+  for (const [kind, title] of groups) {
+    const items = r.bills.filter((b) => b.kind === kind);
+    if (!items.length) continue;
+    const total = r.totals[kind];
+    box.append(el("div", { className: "bill-group-head" },
+      el("span", { className: "eyebrow", textContent: title }),
+      el("span", { className: "small muted num",
+        textContent: `${money(total)}/mo` + (kind === "bill" ? ` · ${money0(total * 12)}/yr` : "") })));
+    const ul = el("ul", { className: "rows bills" });
+    for (const b of items) {
+      const meta = [b.account, kind === "bill" ? b.category : null,
+        b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null].filter(Boolean).join(" · ");
+      ul.append(el("li", { className: b.active ? "" : "inactive" },
+        el("div", { className: "name" }, el("div", { textContent: b.name }), el("div", { className: "meta", textContent: meta })),
+        el("div", { className: "amt num", textContent: money(b.amount_cents) })));
+    }
+    box.append(ul);
   }
 }
 

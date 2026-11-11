@@ -49,6 +49,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Weekly settle-up nudge (`nudge` command; scheduled phone notification)
 - [ ] 🧑 Earlier months' Splitwise exports (so earlier rent and shared costs count only your share)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
+- [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)
 - [x] 🧑 Phone-plan share confirmed and added by hand
 - [ ] 🧑 Apple Card statements (purchases currently missing: only card payments are visible)
 - [ ] 🤖 Annual expenses with monthly set-aside

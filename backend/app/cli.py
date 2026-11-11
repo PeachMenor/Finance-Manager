@@ -264,12 +264,18 @@ def cmd_recurring() -> int:
     init_db()
     with SessionLocal() as session:
         bills = detect_recurring(session, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
-        for b in bills:
-            when = f"next ~{b.next_expected}" if b.next_expected else "—"
-            extra = f"  ({b.note})" if b.note else ""
-            print(f"  {b.name:<26} {format_cents(b.amount_cents):>10}/mo  {b.category:<18} "
-                  f"{(b.account or ''):<30} {when}{extra}")
-        print(f"\n  Monthly total (active): {format_cents(monthly_total_cents(bills))}")
+        titles = {"bill": "BILLS & SUBSCRIPTIONS", "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING"}
+        for kind, title in titles.items():
+            group = [b for b in bills if b.kind == kind]
+            if not group:
+                continue
+            print(f"\n{title}  ({format_cents(monthly_total_cents(bills, kind))}/mo)")
+            for b in group:
+                when = f"next ~{b.next_expected}" if b.next_expected else "—"
+                extra = f"  ({b.note})" if b.note else ""
+                print(f"  {b.name:<26} {format_cents(b.amount_cents):>10}/mo  {b.category:<18} "
+                      f"{(b.account or ''):<30} {when}{extra}")
+        print(f"\n  Leaves your accounts each month: {format_cents(monthly_total_cents(bills, None))}")
     return 0
 
 

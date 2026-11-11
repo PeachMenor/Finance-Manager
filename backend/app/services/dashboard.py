@@ -104,9 +104,11 @@ def net_worth_history(session: Session, currency: str = "USD") -> list[dict]:
 def _recurring(session: Session, today: date) -> dict:
     bills = detect_recurring(session, today=today, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
     return {
-        "monthly_total_cents": monthly_total_cents(bills),
+        "monthly_total_cents": monthly_total_cents(bills),  # bills & subscriptions only
+        "totals": {k: monthly_total_cents(bills, k) for k in ("bill", "loan", "saving")},
+        "all_monthly_cents": monthly_total_cents(bills, None),
         "bills": [{
-            "name": b.name, "category": b.category, "amount_cents": b.amount_cents,
+            "kind": b.kind, "name": b.name, "category": b.category, "amount_cents": b.amount_cents,
             "account": b.account, "source": b.source, "active": b.active, "note": b.note,
             "next_expected": b.next_expected.isoformat() if b.next_expected else None,
         } for b in bills],

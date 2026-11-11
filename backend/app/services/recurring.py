@@ -15,6 +15,15 @@ Two sources:
 2. Added by hand (`ManualRecurring`), for bills that never hit your accounts,
    e.g. your share of a phone plan someone else pays via Splitwise.
 
+3. Loan payments: each hand-entered loan's regular monthly payment and due day.
+
+4. Saving & investing: steady monthly transfers into investment or savings
+   accounts (same subscription rules), e.g. an automatic brokerage deposit.
+
+Every item has a `kind`: "bill" (spending), "loan" or "saving". Loan payments
+and saving are money moving to your own accounts/debts, so they never count as
+spending, but they're still money that leaves checking every month.
+
 If a charge was split on Splitwise, the bill shows your share.
 
 Optional private labels (data/recurring_labels.json, git-ignored) give series
@@ -29,18 +38,20 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import ManualRecurring, Transaction
+from app.db.models import LoanTerms, ManualRecurring, Transaction
 from app.services.spending import classify, match_split_expenses
 
 MIN_GAP_DAYS, MAX_GAP_DAYS = 25, 35
 MAX_PRICE_CHANGE = 0.25  # chaining tolerance
 STEADY = 0.01            # a "same price" step: within 1%
 HABIT_CATEGORIES = {"Food", "Shopping", "Transport"}
+SAVING_DETAILED = {"TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS", "TRANSFER_OUT_SAVINGS"}
 ACTIVE_WITHIN_DAYS = 40  # a monthly bill not seen for longer is shown as possibly cancelled
 
 
 @dataclass
 class RecurringBill:
+    kind: str  # "bill" | "loan" | "saving"
     name: str
     merchant: str
     category: str
@@ -64,6 +75,17 @@ def _add_month(d: date) -> date:
     return date(y, m, 28)
 
 
+def _label_rule(merchant: str, amount_cents: int, labels: list[dict]) -> dict | None:
+    for rule in labels:
+        if rule.get("merchant", "").lower() != merchant.lower():
+            continue
+        amt = amount_cents / 100
+        if ("min" in rule and amt < rule["min"]) or ("max" in rule and amt > rule["max"]):
+            continue
+        return rule
+    return None
+
+
 def _looks_like_subscription(s: list[Transaction]) -> bool:
     amounts = [-t.amount_cents for t in s]
     steps = [abs(b - a) / max(a, 1) for a, b in zip(amounts, amounts[1:])]
@@ -84,16 +106,8 @@ def load_labels(path: Path | None) -> list[dict]:
 
 
 def _label(merchant: str, amount_cents: int, labels: list[dict]) -> str:
-    for rule in labels:
-        if rule.get("merchant", "").lower() != merchant.lower():
-            continue
-        amt = amount_cents / 100
-        if "min" in rule and amt < rule["min"]:
-            continue
-        if "max" in rule and amt > rule["max"]:
-            continue
-        return rule["label"]
-    return merchant
+    rule = _label_rule(merchant, amount_cents, labels)
+    return rule["label"] if rule and "label" in rule else merchant
 
 
 def detect_recurring(session: Session, today: date | None = None,
@@ -106,7 +120,8 @@ def detect_recurring(session: Session, today: date | None = None,
     by_merchant: dict[str, list[Transaction]] = {}
     for t in session.scalars(select(Transaction).where(Transaction.amount_cents < 0).order_by(Transaction.posted_on)):
         c = classify(t.provider_category, t.provider_category_detailed, t.amount_cents, t.category)
-        if c.kind != "spending" or c.category == "Rent":  # rent is tracked on its own
+        saving = t.provider_category_detailed in SAVING_DETAILED and not t.category
+        if not saving and (c.kind != "spending" or c.category == "Rent"):  # rent is tracked on its own
             continue
         by_merchant.setdefault(t.description.strip(), []).append(t)
 
@@ -137,10 +152,13 @@ def detect_recurring(session: Session, today: date | None = None,
             if changed:
                 notes.append(f"was {-s[0].amount_cents / 100:.2f}")
             active = (today - last.posted_on).days <= ACTIVE_WITHIN_DAYS
+            rule = _label_rule(merchant, -last.amount_cents, labels) or {}
+            is_saving = last.provider_category_detailed in SAVING_DETAILED and not last.category
             bills.append(RecurringBill(
+                kind="saving" if is_saving else "bill",
                 name=_label(merchant, -last.amount_cents, labels),
                 merchant=merchant,
-                category=c.category or "Other",
+                category=rule.get("category") or ("Saving & investing" if is_saving else (c.category or "Other")),
                 amount_cents=amount,
                 last_charged=last.posted_on,
                 next_expected=_add_month(last.posted_on) if active else None,
@@ -158,13 +176,35 @@ def detect_recurring(session: Session, today: date | None = None,
             if nxt < today:
                 nxt = _add_month(nxt)
         bills.append(RecurringBill(
-            name=mr.name, merchant=mr.name, category=mr.category, amount_cents=mr.amount_cents,
+            kind="bill", name=mr.name, merchant=mr.name, category=mr.category, amount_cents=mr.amount_cents,
             last_charged=None, next_expected=nxt, account=mr.paid_via, source="manual", note=mr.note or "",
         ))
 
-    bills.sort(key=lambda b: (not b.active, -b.amount_cents))
+    for lt in session.scalars(select(LoanTerms)):
+        due = date(today.year, today.month, min(lt.payment_day, 28))
+        if due < today:
+            due = _add_month(due)
+        recent = []
+        if lt.payment_match:
+            from app.services.loans import find_tracked_payments
+
+            recent = find_tracked_payments(session, lt, today)
+        note = "regular payment"
+        if recent:
+            note += "; you've paid " + ", ".join(f"{p.amount_cents / 100:.0f}" for p in recent[-3:])
+        bills.append(RecurringBill(
+            kind="loan", name=lt.account.display_name, merchant=lt.account.display_name,
+            category="Loan payment", amount_cents=lt.monthly_payment_cents, last_charged=None,
+            next_expected=due if lt.account.balance_cents > 0 else None,
+            account=lt.account.institution.name if lt.account.institution else None,
+            source="loan", active=lt.account.balance_cents > 0, note=note,
+        ))
+
+    order = {"bill": 0, "loan": 1, "saving": 2}
+    bills.sort(key=lambda b: (order[b.kind], not b.active, -b.amount_cents))
     return bills
 
 
-def monthly_total_cents(bills: list[RecurringBill]) -> int:
-    return sum(b.amount_cents for b in bills if b.active)
+def monthly_total_cents(bills: list[RecurringBill], kind: str | None = "bill") -> int:
+    """Monthly total of active items of one kind (default: bills); kind=None for everything."""
+    return sum(b.amount_cents for b in bills if b.active and (kind is None or b.kind == kind))
