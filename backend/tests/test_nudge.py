@@ -85,7 +85,8 @@ def test_sms_reminder_and_settle_pending(session, tmp_path, monkeypatch, capsys)
     _people(session, [("Sam Lee", -12_345), ("Jo Park", 40_000)])
     assert cli.main(["nudge", "--sms"]) == 0
     out = capsys.readouterr().out
-    assert "pay Sam Lee $123.45 on Splitwise this week." in out and "reply: YES, PAID or DONE" in out
+    assert "pay Sam Lee $123.45 on Splitwise this week." in out
+    assert "add confirm_inbox" in out  # no inbox configured in this test
     assert json.loads((tmp_path / "pending_settle.json").read_text())["name"] == "Sam Lee"
     assert cli.main(["people-settle", "--pending"]) == 0
     assert not (tmp_path / "pending_settle.json").exists()
@@ -93,3 +94,17 @@ def test_sms_reminder_and_settle_pending(session, tmp_path, monkeypatch, capsys)
     _people(session, [("Jo Park", 40_000)])
     assert cli.main(["nudge", "--sms"]) == 0
     assert "don't owe anyone" in capsys.readouterr().out
+
+
+def test_confirm_links():
+    from urllib.parse import unquote
+
+    from app.cli import sms_with_confirm_links
+
+    text = sms_with_confirm_links("Finance: pay Sam $5.", "Sam Lee", "me@example.com")
+    links = [ln for ln in text.splitlines() if "mailto:" in ln]
+    assert len(links) == 3
+    assert all(ln.split("mailto:")[1].startswith("me@example.com?subject=") for ln in links)
+    assert "Finance confirm: PAID Sam Lee" in unquote(links[1])
+    assert " " not in links[1].split("mailto:")[1]  # link must not break at spaces
+    assert "Finance confirm TEST: YES Sam Lee" in unquote(sms_with_confirm_links("x", "Sam Lee", "me@example.com", test=True))
