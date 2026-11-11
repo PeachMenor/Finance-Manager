@@ -211,3 +211,26 @@ class PlaidItem(Base):
     institution_name: Mapped[str | None] = mapped_column(String(120))
     cursor: Mapped[str | None] = mapped_column(String(500))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LoanTerms(Base):
+    """Terms for a loan entered by hand (no bank connection).
+
+    The balance is known exactly on `balance_as_of` (from a statement). After that
+    the app estimates it by applying each monthly payment: interest for the month
+    is charged first, the rest of the payment reduces the principal. Entering a
+    newer statement resets the estimate to the exact figure.
+    """
+
+    __tablename__ = "loan_terms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), unique=True)
+    principal_cents: Mapped[int] = mapped_column(Integer)  # owed on balance_as_of
+    balance_as_of: Mapped[date] = mapped_column(Date)
+    apr_bps: Mapped[int] = mapped_column(Integer)  # 5.49% APR -> 549 basis points
+    monthly_payment_cents: Mapped[int] = mapped_column(Integer)
+    payment_day: Mapped[int] = mapped_column(Integer)  # day of month payments post (1-28)
+    maturity_date: Mapped[date | None] = mapped_column(Date)
+
+    account: Mapped[Account] = relationship()

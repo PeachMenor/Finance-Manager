@@ -9,6 +9,8 @@
     python -m app.cli accounts              list accounts with their ids
     python -m app.cli rename ID "NAME"      give an account your own name ("" to clear)
     python -m app.cli hide ID / unhide ID   leave an account off lists (still counted)
+    python -m app.cli loan-set ...          add or update a loan entered by hand (see --help)
+    python -m app.cli loans                 show hand-entered loans: estimated balance, payoff
 
 `demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
 real data is never touched. `people-import` and `summary` use your real database.
@@ -160,9 +162,11 @@ def cmd_people_import(path: str) -> int:
 
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
+    from app.services.loans import refresh_manual_loans
 
     init_db()
     with SessionLocal() as session:
+        refresh_manual_loans(session)
         _print_summary(session)
     return 0
 
@@ -215,6 +219,82 @@ def cmd_set_hidden(account_id: int, hidden: bool) -> int:
     return 0
 
 
+def cmd_loan_set(a) -> int:
+    """Create or update a hand-entered loan from statement figures."""
+    import re
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Account, AccountKind, DataSource, Institution, LoanTerms
+    from app.services.loans import refresh_manual_loans
+    from app.services.money import to_cents
+
+    if not 1 <= a.day <= 28:
+        print("--day must be 1-28 (use 28 for payments due on the 29th-31st).")
+        return 1
+    init_db()
+    external_id = "loan-" + re.sub(r"[^a-z0-9]+", "-", a.name.lower()).strip("-")
+    with SessionLocal() as session:
+        inst = session.scalar(select(Institution).where(Institution.name == a.institution))
+        if inst is None:
+            inst = Institution(name=a.institution)
+            session.add(inst)
+        acct = session.scalar(
+            select(Account).where(Account.source == DataSource.MANUAL, Account.external_id == external_id)
+        )
+        if acct is None:
+            acct = Account(source=DataSource.MANUAL, external_id=external_id, kind=AccountKind.LOAN)
+            session.add(acct)
+        acct.name, acct.institution, acct.kind = a.name, inst, AccountKind.LOAN
+        acct.balance_cents = to_cents(a.balance)
+        session.flush()
+        terms = session.scalar(select(LoanTerms).where(LoanTerms.account_id == acct.id))
+        if terms is None:
+            terms = LoanTerms(account_id=acct.id)
+            session.add(terms)
+        terms.principal_cents = to_cents(a.balance)
+        terms.balance_as_of = date.fromisoformat(a.as_of)
+        terms.apr_bps = to_cents(a.apr)  # 5.49 -> 549 (same x100 conversion as cents)
+        terms.monthly_payment_cents = to_cents(a.payment)
+        terms.payment_day = a.day
+        terms.maturity_date = date.fromisoformat(a.maturity) if a.maturity else None
+        session.commit()
+        refresh_manual_loans(session)
+        print(f"Saved loan '{acct.display_name}' (account id {acct.id}).")
+    return cmd_loans()
+
+
+def cmd_loans() -> int:
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import LoanTerms
+    from app.services.loans import estimate_balance, months_to_payoff, refresh_manual_loans
+    from app.services.money import format_cents
+
+    init_db()
+    with SessionLocal() as session:
+        refresh_manual_loans(session)
+        rows = session.scalars(select(LoanTerms)).all()
+        if not rows:
+            print("No hand-entered loans yet.")
+        for t in rows:
+            est = estimate_balance(t, date.today())
+            left = months_to_payoff(t, est.balance_cents)
+            print(f"\n  {t.account.display_name}")
+            print(f"    statement balance  {format_cents(t.principal_cents)} on {t.balance_as_of}")
+            print(f"    APR {t.apr_bps / 100:.2f}%, payment {format_cents(t.monthly_payment_cents)} on day {t.payment_day}")
+            print(f"    estimated today    {format_cents(est.balance_cents)} "
+                  f"({est.payments_applied} payment(s) applied, {format_cents(est.interest_paid_cents)} of it interest)")
+            print(f"    payments left      {left if left is not None else 'payment does not cover interest!'}"
+                  + (f" (maturity {t.maturity_date})" if t.maturity_date else ""))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -227,6 +307,16 @@ def main(argv: list[str] | None = None) -> int:
     ren = sub.add_parser("rename", help="give an account your own name")
     ren.add_argument("account_id", type=int)
     ren.add_argument("nickname")
+    ls = sub.add_parser("loan-set", help="add or update a loan entered by hand")
+    ls.add_argument("--name", required=True, help='e.g. "Car loan"')
+    ls.add_argument("--institution", required=True, help='lender, e.g. "Example Auto Finance"')
+    ls.add_argument("--balance", required=True, help="principal owed on the statement date, e.g. 15000.00")
+    ls.add_argument("--as-of", required=True, help="statement date, YYYY-MM-DD")
+    ls.add_argument("--apr", required=True, help="annual rate in percent, e.g. 5.49")
+    ls.add_argument("--payment", required=True, help="monthly payment, e.g. 450.00")
+    ls.add_argument("--day", required=True, type=int, help="day of month the payment posts (1-28)")
+    ls.add_argument("--maturity", help="final payment date, YYYY-MM-DD (optional)")
+    sub.add_parser("loans", help="show hand-entered loans")
     for cmd in ("hide", "unhide"):
         sp = sub.add_parser(cmd, help=f"{cmd} an account on the dashboard")
         sp.add_argument("account_id", type=int)
@@ -244,6 +334,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_people_import(args.file)
     if args.command == "accounts":
         return cmd_accounts()
+    if args.command == "loan-set":
+        return cmd_loan_set(args)
+    if args.command == "loans":
+        return cmd_loans()
     if args.command in ("hide", "unhide"):
         return cmd_set_hidden(args.account_id, args.command == "hide")
     if args.command == "rename":

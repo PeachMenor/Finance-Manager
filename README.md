@@ -54,6 +54,12 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    python -m app.cli accounts
    python -m app.cli rename 3 "Travel Card"
    ```
+   Loans with no bank connection: enter the figures from a statement, and the app estimates the balance after each monthly payment (enter a newer statement any time to reset it):
+   ```bash
+   python -m app.cli loan-set --name "Car loan" --institution "Example Auto Finance" \
+     --balance 15000.00 --as-of 2026-11-01 --apr 5.49 --payment 450.00 --day 15
+   python -m app.cli loans
+   ```
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

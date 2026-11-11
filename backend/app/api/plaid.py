@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_session
 from app.db.models import PlaidItem
 from app.integrations.plaid import PlaidClient, PlaidError
+from app.services.loans import refresh_manual_loans
 from app.services.sync import sync_plaid_item
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
@@ -136,6 +137,7 @@ def sync_all(
         except PlaidError as e:
             session.rollback()
             results.append({**_item_view(item), "ok": False, "error": e.error_code})
+    refresh_manual_loans(session)  # hand-entered loans move with each payment date
     return {"items": results}
 
 

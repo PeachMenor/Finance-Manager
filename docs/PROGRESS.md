@@ -25,7 +25,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Clear account names: bank's product name + last 4 digits; nicknames that sync never overwrites
 - [ ] 🤖 Renew-in-place for expiring bank permissions (Plaid update mode), before relinking is ever needed
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
-- [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
+- [x] 🤖 Hand-entered loans: statement balance + APR + payment, estimated after each payment, refreshed on every sync
+- [x] 🤖 Hide accounts from lists (still counted in net worth)
+- [ ] 🧑🤖 Enter the car loan from its statement
+- [ ] 🤖 Manual accounts: cash balances, unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync
 - [ ] 🧑🤖 Annual budgets questionnaire
 
