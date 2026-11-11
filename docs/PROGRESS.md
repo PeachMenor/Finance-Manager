@@ -80,5 +80,6 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Dashboard is plain HTML/JS served by the backend, not React | Simpler setup (no Node build), nothing external to load; enough for one page |
 | 2026-11-10 | Categories: Rent, Food, Shopping, Transport, Entertainment, Travel, Bills & utilities, Other, in a fixed order with fixed colours | Colour follows the category across months; validated colour-blind-safe palette |
 | 2026-11-10 | Headline savings rate uses the last complete month | The current month is still in progress |
+| 2026-11-10 | Splitwise balances stay in net worth (owed to you − you owe) | User's choice: money owed to you counts as yours |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |
