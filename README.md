@@ -49,6 +49,11 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    python -m app.cli people-import ../data/splitwise_balances.json
    python -m app.cli summary
    ```
+   To give an account a clearer name (kept across syncs), list ids and rename:
+   ```bash
+   python -m app.cli accounts
+   python -m app.cli rename 3 "Travel Card"
+   ```
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

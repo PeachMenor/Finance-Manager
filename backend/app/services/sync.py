@@ -71,6 +71,7 @@ def sync_accounts(
         acct.name = fa.name
         acct.kind = fa.kind
         acct.currency = fa.currency
+        acct.mask = fa.mask  # nickname is the user's and is deliberately left alone
         acct.balance_cents = fa.balance_cents
         acct.balance_updated_at = now
         session.add(BalanceSnapshot(account=acct, balance_cents=fa.balance_cents, taken_at=now))

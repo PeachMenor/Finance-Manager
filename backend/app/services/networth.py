@@ -60,7 +60,7 @@ def compute_net_worth(session: Session, currency: str = "USD") -> NetWorthSummar
         liability = a.kind.is_liability
         summary.accounts.append(
             AccountLine(
-                name=a.name,
+                name=a.display_name,
                 institution=a.institution.name if a.institution else None,
                 kind=a.kind.value,
                 balance_cents=a.balance_cents,

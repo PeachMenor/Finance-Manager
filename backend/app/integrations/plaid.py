@@ -156,6 +156,17 @@ def map_account_kind(plaid_type: str, subtype: str | None) -> AccountKind:
     return AccountKind.OTHER
 
 
+def account_display_name(a: dict) -> str:
+    """Pick the clearest name Plaid offers.
+
+    Banks often send a generic `name` ("CREDIT CARD") but a specific
+    `official_name` ("Rewards Visa"), so prefer the official one. All-caps names
+    are softened to Title Case ("EVERYDAY CHECKING" -> "Everyday Checking").
+    """
+    name = a.get("official_name") or a.get("name") or "Account"
+    return name.title() if name.isupper() else name
+
+
 class PlaidIntegration(Integration):
     """Reads one linked Plaid login. After `fetch_accounts`, save `next_cursor`."""
 
@@ -255,10 +266,11 @@ class PlaidIntegration(Integration):
                 FetchedAccount(
                     external_id=a["account_id"],
                     institution_name=self.institution_name,
-                    name=a.get("name") or a.get("official_name") or "Account",
+                    name=account_display_name(a),
                     kind=kind,
                     balance_cents=to_cents(current or 0),
                     currency=bal.get("iso_currency_code") or "USD",
+                    mask=(a.get("mask") or None),
                     transactions=txns,
                     removed_transaction_ids=removed.get(a["account_id"], []),
                     holdings=holdings.get(a["account_id"], [])

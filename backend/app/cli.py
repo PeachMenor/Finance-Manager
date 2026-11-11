@@ -6,6 +6,8 @@
     python -m app.cli people-import FILE    load who-owes-whom balances from a JSON file
                                             (e.g. data/splitwise_balances.json, read off a screenshot)
     python -m app.cli summary               print net worth from your real database
+    python -m app.cli accounts              list accounts with their ids
+    python -m app.cli rename ID "NAME"      give an account your own name ("" to clear)
 
 `demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
 real data is never touched. `people-import` and `summary` use your real database.
@@ -161,6 +163,36 @@ def cmd_summary() -> int:
     return 0
 
 
+def cmd_accounts() -> int:
+    from sqlalchemy import select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Account
+
+    init_db()
+    with SessionLocal() as session:
+        for a in session.scalars(select(Account).order_by(Account.id)):
+            inst = a.institution.name if a.institution else "-"
+            print(f"  {a.id:>3}  {inst:<20} {a.display_name:<36} {a.kind.value}")
+    return 0
+
+
+def cmd_rename(account_id: int, nickname: str) -> int:
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Account
+
+    init_db()
+    with SessionLocal() as session:
+        acct = session.get(Account, account_id)
+        if acct is None:
+            print(f"No account with id {account_id}. Run `python -m app.cli accounts`.")
+            return 1
+        acct.nickname = nickname.strip() or None
+        session.commit()
+        print(f"Account {account_id} is now shown as: {acct.display_name}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -169,6 +201,10 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
+    sub.add_parser("accounts", help="list accounts with their ids")
+    ren = sub.add_parser("rename", help="give an account your own name")
+    ren.add_argument("account_id", type=int)
+    ren.add_argument("nickname")
     args = parser.parse_args(argv)
 
     # Choose the database before anything imports app.db (see _point_at_demo_db).
@@ -181,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_plaid_sandbox_check()
     if args.command == "people-import":
         return cmd_people_import(args.file)
+    if args.command == "accounts":
+        return cmd_accounts()
+    if args.command == "rename":
+        return cmd_rename(args.account_id, args.nickname)
     return cmd_summary()
 
 

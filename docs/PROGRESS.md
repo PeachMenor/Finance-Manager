@@ -20,7 +20,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑🤖 Live check against Plaid's sandbox: 14 accounts, transactions and 13 holdings synced; totals verified
 - [x] 🤖 Plaid Link page (`/link`): link, sync now, unlink; verified against Plaid sandbox in the browser
 - [x] 🤖 Sandbox and real data kept in separate databases; server only answers to localhost
-- [ ] 🧑 Switch to Plaid production: production secret + `PLAID_ENV=production`; complete Plaid Dashboard profile for OAuth banks
+- [x] 🧑 Switch to Plaid production (production secret, `PLAID_ENV=production`)
+- [ ] 🧑 Link real logins (checklist kept privately in `data/my-accounts.md`)
+- [x] 🤖 Clear account names: bank's product name + last 4 digits; nicknames that sync never overwrites
+- [ ] 🤖 Renew-in-place for expiring bank permissions (Plaid update mode), before relinking is ever needed
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
 - [ ] 🤖 Manual accounts: cash balances, loans (balance/APR/payment), unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync

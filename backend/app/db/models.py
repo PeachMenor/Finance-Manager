@@ -85,7 +85,11 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     institution_id: Mapped[int | None] = mapped_column(ForeignKey("institutions.id"))
-    name: Mapped[str] = mapped_column(String(120))  # e.g. "Everyday Checking"
+    name: Mapped[str] = mapped_column(String(120))  # from the provider, e.g. "Rewards Visa"
+    # Your own label; set once with `python -m app.cli rename`, never overwritten by sync.
+    nickname: Mapped[str | None] = mapped_column(String(120))
+    # Last 4 digits only, to tell similar accounts apart. Full numbers are never stored.
+    mask: Mapped[str | None] = mapped_column(String(4))
     kind: Mapped[AccountKind] = mapped_column(Enum(AccountKind))
     source: Mapped[DataSource] = mapped_column(Enum(DataSource))
     external_id: Mapped[str] = mapped_column(String(200))  # provider's id, not the account number
@@ -100,6 +104,12 @@ class Account(Base):
     snapshots: Mapped[list["BalanceSnapshot"]] = relationship(back_populates="account")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="account")
     holdings: Mapped[list["Holding"]] = relationship(back_populates="account")
+
+    @property
+    def display_name(self) -> str:
+        """What the dashboard shows, e.g. "Travel Card ••1234"."""
+        base = self.nickname or self.name
+        return f"{base} ••{self.mask}" if self.mask else base
 
 
 class BalanceSnapshot(Base):

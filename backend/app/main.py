@@ -57,7 +57,7 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
     return [
         {
             "id": a.id,
-            "name": a.name,
+            "name": a.display_name,
             "institution": a.institution.name if a.institution else None,
             "kind": a.kind.value,
             "balance_cents": a.balance_cents,

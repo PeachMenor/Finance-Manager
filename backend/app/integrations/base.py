@@ -36,6 +36,7 @@ class FetchedAccount:
     kind: AccountKind
     balance_cents: int  # liabilities as positive amounts owed
     currency: str = "USD"
+    mask: str | None = None  # last 4 digits, if the provider gives them
     # New or changed transactions. Re-sending one already stored updates it.
     transactions: list[FetchedTransaction] = field(default_factory=list)
     # Transactions the provider says no longer exist (e.g. a pending charge that dropped).
