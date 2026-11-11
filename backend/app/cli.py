@@ -466,6 +466,41 @@ def cmd_budgets() -> int:
     return 0
 
 
+def cmd_year() -> int:
+    """Budget year so far: income, expenses, saved, invested, month by month."""
+    from datetime import date
+
+    from app.config import data_dir
+    from app.db.base import SessionLocal, init_db
+    from app.services.budgets import BudgetConfig
+    from app.services.dashboard import _year
+    from app.services.money import format_cents
+
+    if BudgetConfig.load(data_dir() / "budgets.json") is None:
+        print("No budget year yet: create data/budgets.json.")
+        return 1
+    init_db()
+    with SessionLocal() as session:
+        y = _year(session, date.today())
+    s = y["summary"]
+    rate = f"{s['savings_rate'] * 100:.1f}%" if s["savings_rate"] is not None else "—"
+    print(f"Budget year {s['year_start']} to {s['year_end']} (through {s['through']})")
+    print(f"  Income   {format_cents(s['income_cents']):>14}")
+    print(f"  Expenses {format_cents(s['expenses_cents']):>14}")
+    print(f"  Saved    {format_cents(s['saved_cents']):>14}  ({rate})")
+    print(f"  Invested {format_cents(s['invested_cents']):>14}")
+    print("\n  Month      Income      Expenses     Saved")
+    for m in s["months"]:
+        if m["started"]:
+            print(f"  {m['month']}  {format_cents(m['income_cents']):>11} {format_cents(m['expenses_cents']):>11} "
+                  f"{format_cents(m['saved_cents']):>11}{'' if m['complete'] else '  (in progress)'}")
+    if y["review"]:
+        print("\nDeposits to explain (reimbursement? income?):")
+        for r in y["review"]:
+            print(f"  #{r['id']} {r['date']} {format_cents(r['amount_cents'])} {r['description']}")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -665,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("summary", help="print net worth from your real database")
     sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
+    sub.add_parser("year", help="budget year so far: income, expenses, saved, invested")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
     rr = sub.add_parser("recurring-remove", help="remove a bill or expected income you added by hand")
     rr.add_argument("name")
@@ -742,6 +778,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_recurring_remove(args.name)
     if args.command == "recurring-add":
         return cmd_recurring_add(args)
+    if args.command == "year":
+        return cmd_year()
     if args.command == "budgets":
         return cmd_budgets()
     if args.command == "nudge":

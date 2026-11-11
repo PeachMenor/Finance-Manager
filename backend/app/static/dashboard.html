@@ -113,6 +113,20 @@
   .swatch { width: 10px; height: 10px; border-radius: 3px; }
   .legend .pct { color: var(--text-muted); font-size: 12px; min-width: 38px; text-align: right; }
 
+  /* Budget year */
+  .year-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .year-kpis { grid-template-columns: 1fr 1fr; } }
+  .year-kpis .value { font-size: 24px; margin-top: 4px; }
+  table.months { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.months th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+  table.months th, table.months td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--rule); text-align: right; }
+  table.months th:first-child, table.months td:first-child { text-align: left; }
+  td.barcell { width: 26%; }
+  .mbar { height: 8px; border-radius: 999px; background: var(--bar); }
+  .mbar.peak { background: var(--accent); }
+  .review { border: 1px solid var(--warn); border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; }
+  .review li { border: 0; padding: 4px 0; display: flex; justify-content: space-between; gap: 16px; }
+
   /* Budgets */
   .budgets { display: grid; grid-template-columns: 1fr 1fr; column-gap: 40px; }
   @media (max-width: 760px) { .budgets { grid-template-columns: 1fr; } }
@@ -201,6 +215,23 @@
       <div class="value num" id="k-debts">–</div>
       <div class="sub" id="k-debts-sub"></div>
     </div>
+  </section>
+
+  <!-- Budget year so far -->
+  <section class="block" id="year-block" hidden>
+    <div class="block-head">
+      <h2>This budget year</h2>
+      <span class="small muted" id="year-range"></span>
+    </div>
+    <div class="year-kpis">
+      <div><div class="eyebrow">Income so far</div><div class="value num" id="y-income">–</div></div>
+      <div><div class="eyebrow">Expenses so far</div><div class="value num" id="y-expenses">–</div></div>
+      <div><div class="eyebrow">Saved</div><div class="value num" id="y-saved">–</div><div class="small muted" id="y-rate"></div></div>
+      <div><div class="eyebrow">Invested</div><div class="value num" id="y-invested">–</div></div>
+    </div>
+    <div id="review"></div>
+    <table class="months" id="year-months"></table>
+    <p class="note" id="year-note"></p>
   </section>
 
   <!-- Spending: monthly bars + category donut -->
@@ -515,6 +546,65 @@ function renderLine(history) {
   hit.addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
 }
 
+// ---------- Budget year ----------
+function renderYear(d) {
+  const block = document.getElementById("year-block");
+  const y = d.year && d.year.summary;
+  const review = (d.year && d.year.review) || [];
+  if (!y) { block.hidden = true; return; }
+  block.hidden = false;
+  const fmtD = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  document.getElementById("year-range").textContent = `${fmtD(y.year_start)} – ${fmtD(y.year_end)} · through ${fmtD(y.through)}`;
+  document.getElementById("y-income").textContent = money(y.income_cents);
+  document.getElementById("y-expenses").textContent = money(y.expenses_cents);
+  const saved = document.getElementById("y-saved");
+  saved.textContent = (y.saved_cents < 0 ? "−" : "") + money(Math.abs(y.saved_cents));
+  saved.className = "value num " + (y.saved_cents < 0 ? "owe" : "owed");
+  document.getElementById("y-rate").textContent = y.savings_rate == null ? "no income yet" : `${pct(y.savings_rate)} of income`;
+  document.getElementById("y-invested").textContent = money(y.invested_cents);
+
+  // Deposits that need explaining (e.g. an employer reimbursement).
+  const rv = document.getElementById("review");
+  rv.replaceChildren();
+  if (review.length) {
+    const ul = el("ul");
+    for (const r of review) {
+      ul.append(el("li", { className: "small" },
+        el("span", { textContent: `#${r.id} · ${fmtD(r.date)} · ${r.description}` }),
+        el("span", { className: "num", textContent: money(r.amount_cents) })));
+    }
+    rv.append(el("div", { className: "review" },
+      el("div", { className: "eyebrow s-warn", textContent: "▲ Needs your input: what were these deposits?" }), ul,
+      el("div", { className: "small muted", textContent: "Tell Claude (e.g. \"#52 is an education reimbursement\"): reimbursements reduce that expense; anything else counts as income." })));
+  }
+
+  const months = y.months.filter((m) => m.started);
+  const maxExp = Math.max(...months.map((m) => m.expenses_cents), 1);
+  const t = document.getElementById("year-months");
+  t.replaceChildren(el("tr", {}, ...["Month", "Income", "Expenses", "", "Saved", "vs prev."].map((h) => el("th", { textContent: h }))));
+  months.forEach((m, i) => {
+    const prev = i > 0 ? months[i - 1] : null;
+    const change = prev ? m.expenses_cents - prev.expenses_cents : null;
+    const isUp = y.biggest_increase && y.biggest_increase.to === m.month;
+    const isDown = y.biggest_decrease && y.biggest_decrease.to === m.month;
+    const bar = el("div", { className: "mbar" + (y.highest_month === m.month ? " peak" : "") });
+    bar.style.width = `${(Math.max(m.expenses_cents, 0) / maxExp) * 100}%`;
+    t.append(el("tr", {},
+      el("td", { textContent: monthName(m.month, "long") + (m.complete ? "" : " (so far)") }),
+      el("td", { className: "num", textContent: money0(m.income_cents) }),
+      el("td", { className: "num", textContent: money0(m.expenses_cents) }),
+      el("td", { className: "barcell" }, bar),
+      el("td", { className: "num " + (m.saved_cents < 0 ? "owe" : ""), textContent: (m.saved_cents < 0 ? "−" : "") + money0(Math.abs(m.saved_cents)) }),
+      el("td", { className: "num " + (isUp ? "owe" : isDown ? "owed" : "muted"),
+        textContent: change == null ? "—" : `${change > 0 ? "+" : change < 0 ? "−" : ""}${money0(Math.abs(change))}${isUp ? " ▲ biggest rise" : isDown ? " ▼ biggest drop" : ""}` })));
+  });
+  const bits = [];
+  if (y.average_month_expenses_cents != null) bits.push(`Average month: ${money0(y.average_month_expenses_cents)} in expenses.`);
+  if (y.highest_month) bits.push(`Highest: ${monthName(y.highest_month, "long")}. Lowest: ${monthName(y.lowest_month, "long")}.`);
+  bits.push("Invested = money moved into investment accounts (401(k) paycheck deductions aren't visible to the app).");
+  document.getElementById("year-note").textContent = bits.join(" ");
+}
+
 // ---------- Budgets ----------
 function renderBudgets(d) {
   const b = d.budgets, block = document.getElementById("budgets-block");
@@ -656,7 +746,7 @@ async function load() {
   document.getElementById("shared-note").textContent = sf
     ? `Shared expenses count only your share (from Splitwise, ${new Date(sf + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} onward); earlier shared purchases still count in full until imported.`
     : "Shared purchases count in full until Splitwise expenses are imported.";
-  renderKpis(DATA); renderBars(DATA); renderDonut(DATA); renderBudgets(DATA); renderBills(DATA); renderLine(DATA.history); renderLedger(DATA);
+  renderKpis(DATA); renderYear(DATA); renderBars(DATA); renderDonut(DATA); renderBudgets(DATA); renderBills(DATA); renderLine(DATA.history); renderLedger(DATA);
 }
 function showError(msg) { const e = document.getElementById("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
 document.getElementById("sync").onclick = async (ev) => {

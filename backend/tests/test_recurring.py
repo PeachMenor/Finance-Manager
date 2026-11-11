@@ -205,3 +205,19 @@ def test_gym_membership_counts_after_two_months(session):
                                 provider_category_detailed="PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS"))
     session.commit()
     assert "FitClub" in _names(session)
+
+
+def test_hand_added_bill_steps_aside_when_detected(session, tmp_path):
+    a = _acct(session)
+    session.add(ManualRecurring(name="Gym", amount_cents=2_800, category="Personal care & shopping", day_of_month=30))
+    session.commit()
+    assert [b.source for b in detect_recurring(session, today=TODAY)] == ["manual"]
+    labels = tmp_path / "l.json"
+    labels.write_text('{"labels": [{"merchant": "FitPlace", "label": "Gym"}]}')
+    for i, d in enumerate([date(2026, 9, 30), date(2026, 10, 30)]):
+        session.add(Transaction(account_id=a.id, external_id=f"g{i}", posted_on=d, amount_cents=-2_800,
+                                description="FitPlace", provider_category="PERSONAL_CARE",
+                                provider_category_detailed="PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS"))
+    session.commit()
+    bills = detect_recurring(session, today=TODAY, labels_path=labels)
+    assert [(b.name, b.source) for b in bills] == [("Gym", "detected")]

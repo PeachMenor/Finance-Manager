@@ -188,7 +188,10 @@ def detect_recurring(session: Session, today: date | None = None,
             ))
 
     cycle_months = {"quarterly": 3, "semester": 6, "semiannual": 6, "yearly": 12}
+    detected_names = {b.name.lower() for b in bills if b.active}
     for mr in session.scalars(select(ManualRecurring)):
+        if mr.name.lower() in detected_names:
+            continue  # now found in your charges: the detected version replaces the hand-added one
         if mr.category == "Income":  # expected income added by hand, e.g. a bonus
             months = sorted(int(x) for x in (mr.due_note or "").split(",") if x.strip().isdigit())
             nxt = mr.next_due or _next_in_months(today, months)

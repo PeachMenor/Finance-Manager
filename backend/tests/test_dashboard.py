@@ -152,3 +152,8 @@ def test_dashboard_includes_recurring(session):
 
 def test_dashboard_budgets_absent_without_file(session):
     assert build_dashboard(session)["budgets"] is None
+
+
+def test_dashboard_year_without_budget_file(session):
+    y = build_dashboard(session)["year"]
+    assert y == {"summary": None, "review": []}

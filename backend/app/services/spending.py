@@ -233,7 +233,7 @@ class SpendItem:
 @dataclass
 class Collected:
     spend: list[SpendItem] = field(default_factory=list)
-    income: list[tuple[date, int]] = field(default_factory=list)
+    income: list[tuple[date, int, str]] = field(default_factory=list)  # (day, cents, description)
     data_days: set[date] = field(default_factory=set)  # days with any data (has_data / partial)
     unmatched: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     flags: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
@@ -264,7 +264,7 @@ def collect_spending(session: Session, start: date, end: date, rent_rule: RentRu
         elif c.kind == "spending":
             out.spend.append(SpendItem(t.posted_on, c.category, -t.amount_cents, c.sub))
         elif c.kind == "income":
-            out.income.append((t.posted_on, t.amount_cents))
+            out.income.append((t.posted_on, t.amount_cents, t.description))
 
     # Shared expenses: count only your share.
     rent_explained: set[date] = set()  # rent payments a Splitwise entry already accounts for
@@ -306,11 +306,13 @@ def collect_spending(session: Session, start: date, end: date, rent_rule: RentRu
                 out.spend.append(SpendItem(day, "Other", excess))
                 out.flags[_month_key(day)].append(
                     f"rent payment on {day} was {excess / 100:,.2f} above the base rent (unexplained)")
-        # Your fixed rent share, once per month that has data (dated the 1st).
+        # Your fixed rent share, dated the 1st of each month that has data and
+        # starts inside the window (rent is due on the 1st; a window starting
+        # mid-month doesn't include that month's rent).
         for k in sorted({_month_key(d) for d in out.data_days}):
             first = date(int(k[:4]), int(k[5:]), 1)
-            if start <= first <= end or k == _month_key(start):
-                out.spend.append(SpendItem(max(first, start), "Rent", rent_rule.your_share_cents))
+            if start <= first <= end:
+                out.spend.append(SpendItem(first, "Rent", rent_rule.your_share_cents))
     return out
 
 
@@ -340,7 +342,7 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
             spending[k][it.category] += it.cents
             if it.sub:
                 subs[k][it.sub] += it.cents
-    for day, cents in col.income:
+    for day, cents, _desc in col.income:
         k = _month_key(day)
         if k in income:
             income[k] += cents

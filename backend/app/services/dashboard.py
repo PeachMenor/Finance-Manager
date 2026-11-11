@@ -23,6 +23,7 @@ from app.config import data_dir
 from app.services.networth import compute_net_worth
 from app.services.recurring import detect_recurring, monthly_total_cents
 from app.services.budgets import BudgetConfig, budget_progress
+from app.services.yearly import deposits_to_review, year_summary
 from app.services.spending import CATEGORIES, RentRule, monthly_summary
 
 GROUPS = [
@@ -102,6 +103,18 @@ def net_worth_history(session: Session, currency: str = "USD") -> list[dict]:
     return history
 
 
+def _year(session: Session, today: date) -> dict | None:
+    """Budget-year totals (needs a budget year: data/budgets.json)."""
+    cfg = BudgetConfig.load(data_dir() / "budgets.json")
+    rule = RentRule.load(data_dir() / "household.json")
+    bills = detect_recurring(session, today=today, labels_path=data_dir() / "recurring_labels.json")
+    regular = {b.merchant for b in bills if b.kind == "income" and b.source == "detected"}
+    review = deposits_to_review(session, today, regular)
+    if cfg is None:
+        return {"summary": None, "review": review}
+    return {"summary": year_summary(session, cfg.year_start, cfg.year_end, today, rule), "review": review}
+
+
 def _budgets(session: Session, today: date) -> dict | None:
     cfg = BudgetConfig.load(data_dir() / "budgets.json")
     if cfg is None:
@@ -172,6 +185,7 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "history": net_worth_history(session),
         "recurring": _recurring(session, today),
         "budgets": _budgets(session, today),
+        "year": _year(session, today),
         "spending": {
             "categories": CATEGORIES,
             "months": monthly_summary(session, months=6, today=today,
