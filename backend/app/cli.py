@@ -257,6 +257,12 @@ def cmd_nudge(pay_one: bool = False) -> int:
     with SessionLocal() as session:
         text = build_pay_one(session) if pay_one else build_nudge(session)
         print(text or "Splitwise: all settled up.")
+        if pay_one:
+            from app.services.nudge import next_payee
+
+            who = next_payee(session)
+            if who:  # second line, for the "did you pay?" question
+                print(f"PAYEE: {who[0]} | {who[1] / 100:.2f}")
     return 0
 
 
@@ -532,6 +538,64 @@ def cmd_report(month: str | None, previous: bool) -> int:
     return 0
 
 
+def cmd_people_settle(name: str, amount: str | None) -> int:
+    """Record that you paid someone back on Splitwise (only after you confirm it).
+
+    Lowers what you owe them (fully, or by --amount), updates the private
+    data/splitwise_balances.json so a re-import doesn't bring it back, and logs
+    the payment in data/settlements.json. Next Friday's screenshot is the source
+    of truth and replaces these numbers.
+    """
+    import json
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.config import data_dir
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import PersonBalance
+    from app.services.money import format_cents, to_cents
+
+    init_db()
+    with SessionLocal() as session:
+        rows = session.scalars(select(PersonBalance).where(PersonBalance.amount_cents < 0)).all()
+        exact = [p for p in rows if p.name.lower() == name.lower()]
+        matches = exact or [p for p in rows if p.name.lower().startswith(name.lower())]
+        if len(matches) != 1:
+            print(f"Need exactly one person you owe matching {name!r}; found {[p.name for p in matches]}.")
+            return 1
+        p = matches[0]
+        owed = -p.amount_cents
+        paid = owed if amount is None else min(to_cents(amount), owed)
+        p.amount_cents += paid
+        remaining = -p.amount_cents
+        if p.amount_cents == 0:
+            session.delete(p)
+        session.commit()
+        full_name = p.name
+
+    bal_path = data_dir() / "splitwise_balances.json"
+    if bal_path.exists():
+        data = json.loads(bal_path.read_text())
+        people = []
+        for person in data.get("people", []):
+            if person["name"] == full_name:
+                left = round(person["amount"] + paid / 100, 2)
+                if left != 0:
+                    people.append({**person, "amount": left})
+            else:
+                people.append(person)
+        data["people"] = people
+        bal_path.write_text(json.dumps(data, indent=1))
+    log_path = data_dir() / "settlements.json"
+    log = json.loads(log_path.read_text()) if log_path.exists() else []
+    log.append({"date": date.today().isoformat(), "name": full_name, "paid": paid / 100})
+    log_path.write_text(json.dumps(log, indent=1))
+    print(f"Recorded: you paid {full_name} {format_cents(paid)}"
+          + (f"; you still owe {format_cents(remaining)}." if remaining else "; all settled with them."))
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -729,6 +793,9 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
+    ps = sub.add_parser("people-settle", help="record that you paid someone back (after you confirm)")
+    ps.add_argument("name", help="full name or the start of it")
+    ps.add_argument("--amount", help="if you paid only part of it")
     nu = sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
@@ -823,6 +890,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_nudge(args.pay_one)
     if args.command == "splitwise-import-expenses":
         return cmd_splitwise_import_expenses(args.file)
+    if args.command == "people-settle":
+        return cmd_people_settle(args.name, args.amount)
     if args.command == "people-import":
         return cmd_people_import(args.file)
     if args.command == "accounts":

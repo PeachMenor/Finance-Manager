@@ -45,3 +45,32 @@ def test_pay_one_person_at_a_time(session):
     assert build_pay_one(session) == "This week, pay Alex $5 on Splitwise."
     _people(session, [])
     assert build_pay_one(session) is None
+
+
+def test_settle_after_confirmation(session, tmp_path, monkeypatch, capsys):
+    import json
+
+    from sqlalchemy import select
+
+    from app import cli
+    from app.db.models import PersonBalance
+    from app.services.nudge import next_payee
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    (tmp_path / "splitwise_balances.json").write_text(json.dumps({"people": [
+        {"name": "Sam Lee", "amount": -123.45}, {"name": "Alex Kim", "amount": -5.00}, {"name": "Jo Park", "amount": 400.0}]}))
+    _people(session, [("Sam Lee", -12_345), ("Alex Kim", -500), ("Jo Park", 40_000)])
+    assert next_payee(session) == ("Sam Lee", 12_345)
+
+    assert cli.main(["people-settle", "Jo"]) == 1  # Jo owes you; you can't "pay" them
+    assert cli.main(["people-settle", "Sam", "--amount", "100"]) == 0  # partial
+    session.expire_all()
+    assert session.scalar(select(PersonBalance).where(PersonBalance.name == "Sam Lee")).amount_cents == -2_345
+    assert cli.main(["people-settle", "Sam Lee"]) == 0  # the rest
+    session.expire_all()
+    assert next_payee(session) == ("Alex Kim", 500)
+    left = json.loads((tmp_path / "splitwise_balances.json").read_text())["people"]
+    assert [p["name"] for p in left] == ["Alex Kim", "Jo Park"]
+    log = json.loads((tmp_path / "settlements.json").read_text())
+    assert [(x["name"], x["paid"]) for x in log] == [("Sam Lee", 100.0), ("Sam Lee", 23.45)]
+    assert "all settled with them" in capsys.readouterr().out

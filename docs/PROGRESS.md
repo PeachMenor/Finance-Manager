@@ -47,6 +47,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑 First Splitwise exports and balances imported (November)
 - [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
 - [x] 🤖 Weekly settle-up nudge (`nudge` command); Friday 6 PM phone reminder to pay one person (`--pay-one`, biggest first)
+- [x] 🤖 Reminder asks "Did you pay?"; only an explicit yes records it (`people-settle`), updating balances and logging the payment
 - [x] 🧑 Splitwise: weekly Friday screenshots of balances (earlier months not needed; rent handled by the household rule)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)

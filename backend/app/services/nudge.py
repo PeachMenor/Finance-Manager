@@ -89,3 +89,13 @@ def build_pay_one(session: Session, now: datetime | None = None, currency: str =
         parts.append("Send a new screenshot")
     text = ". ".join(parts) + "."
     return text if len(text) <= MAX_CHARS else text[: MAX_CHARS - 1] + "…"
+
+
+def next_payee(session: Session, currency: str = "USD") -> tuple[str, int] | None:
+    """(full name, amount you owe in cents) for this week's pay-one reminder."""
+    rows = session.scalars(select(PersonBalance).where(PersonBalance.currency == currency,
+                                                       PersonBalance.amount_cents < 0)).all()
+    if not rows:
+        return None
+    p = min(rows, key=lambda r: r.amount_cents)
+    return p.name, -p.amount_cents
