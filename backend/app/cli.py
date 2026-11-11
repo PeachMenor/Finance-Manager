@@ -273,7 +273,9 @@ def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
                 return 0
             pending.write_text(json.dumps({"name": who[0], "amount": who[1] / 100,
                                            "asked_at": datetime.now(timezone.utc).isoformat()}))
-            print(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week. Reply YES once paid.")
+            print(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week.\n"
+                  f"Once paid, reply: YES, PAID or DONE\n"
+                  f"Paid part? Reply e.g. PAID 100")
             return 0
         text = build_pay_one(session) if pay_one else build_nudge(session)
         print(text or "Splitwise: all settled up.")

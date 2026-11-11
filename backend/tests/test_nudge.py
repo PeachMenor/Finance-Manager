@@ -84,7 +84,8 @@ def test_sms_reminder_and_settle_pending(session, tmp_path, monkeypatch, capsys)
     monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
     _people(session, [("Sam Lee", -12_345), ("Jo Park", 40_000)])
     assert cli.main(["nudge", "--sms"]) == 0
-    assert "pay Sam Lee $123.45 on Splitwise this week. Reply YES once paid." in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "pay Sam Lee $123.45 on Splitwise this week." in out and "reply: YES, PAID or DONE" in out
     assert json.loads((tmp_path / "pending_settle.json").read_text())["name"] == "Sam Lee"
     assert cli.main(["people-settle", "--pending"]) == 0
     assert not (tmp_path / "pending_settle.json").exists()
