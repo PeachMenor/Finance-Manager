@@ -96,6 +96,22 @@ Finance-Manager/
 - **Annual expenses:** yearly items (insurance, memberships, taxes), with a monthly "set aside" amount 🤖
 - Confirm categories and recurring items the app finds 🧑
 
+**Counting only YOUR share of spending** (must-have):
+
+| Money movement | Counted as |
+|---|---|
+| Card or bank purchase, not shared | Your expense (full amount) |
+| Purchase you paid for and split on Splitwise | Your expense = **your share only**; the rest is money owed to you, not spending |
+| Expense someone else paid, split with you on Splitwise | Your expense = your share (even though no card charge) |
+| Paying a credit card bill from checking | Transfer, **not** an expense (the card purchases already counted) |
+| Splitwise settle-up you send or receive (Venmo, Zelle, ...) | Transfer, not an expense or income |
+| Loan payment | Interest = expense; principal = transfer (reduces the loan) |
+| Moving money between your own accounts | Transfer |
+
+- Splitwise expenses are matched to card/bank transactions by date (± a few days) and the amount you paid 🤖
+- Needs the Splitwise **expense list** (who paid, total, your share), not only the friends balances: share screenshots of the activity/expense list weekly 🧑
+- Anything that can't be matched automatically is listed for you to confirm 🧑
+
 ## Stage 4 — Budgets
 
 **Outcome:** spending tracked against the budgets you set in Stage 1.

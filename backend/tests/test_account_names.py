@@ -92,3 +92,24 @@ def test_hidden_account_still_counts_and_survives_sync(session, capsys):
     assert cli.cmd_set_hidden(acct_id, False) == 0
     session.expire_all()
     assert session.get(Account, acct_id).hidden is False
+
+
+def test_exclude_and_include_change_net_worth(session, capsys):
+    from app.services.networth import compute_net_worth
+
+    sync_accounts(session, DataSource.PLAID, [
+        FetchedAccount("b1", "Test Broker", "Stock Awards", AccountKind.BROKERAGE, 50_000, mask="1234"),
+    ])
+    acct_id = session.scalar(select(Account)).id
+    assert cli.cmd_set_counted(acct_id, False) == 0
+    sync_accounts(session, DataSource.PLAID, [  # sync must not undo the choice
+        FetchedAccount("b1", "Test Broker", "Stock Awards", AccountKind.BROKERAGE, 60_000, mask="1234"),
+    ])
+    session.expire_all()
+    s = compute_net_worth(session)
+    assert (s.assets_cents, s.excluded_cents, s.net_worth_cents) == (0, 60_000, 0)
+    cli._print_summary(session)
+    assert "Not counted" in capsys.readouterr().out
+    assert cli.cmd_set_counted(acct_id, True) == 0
+    session.expire_all()
+    assert compute_net_worth(session).net_worth_cents == 60_000

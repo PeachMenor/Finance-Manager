@@ -9,6 +9,7 @@
     python -m app.cli accounts              list accounts with their ids
     python -m app.cli rename ID "NAME"      give an account your own name ("" to clear)
     python -m app.cli hide ID / unhide ID   leave an account off lists (still counted)
+    python -m app.cli exclude ID / include ID  stop / resume counting an account in net worth
     python -m app.cli loan-set ...          add or update a loan entered by hand (see --help)
     python -m app.cli loans                 show hand-entered loans: estimated balance, payoff
 
@@ -71,7 +72,10 @@ def _print_summary(session) -> None:
     print(f"  {'Liabilities':<{width}} {'−' + format_cents(s.liabilities_cents):>26}")
     print(f"  {'Owed to you':<{width}} {format_cents(s.owed_to_you_cents):>26}")
     print(f"  {'You owe':<{width}} {'−' + format_cents(s.you_owe_cents):>26}")
-    print(f"  {'NET WORTH':<{width}} {format_cents(s.net_worth_cents):>26}\n")
+    print(f"  {'NET WORTH':<{width}} {format_cents(s.net_worth_cents):>26}")
+    if s.excluded_cents:
+        print(f"  {'Not counted (e.g. unvested awards)':<{width}} {format_cents(s.excluded_cents):>26}")
+    print()
 
 
 def cmd_demo() -> int:
@@ -181,7 +185,7 @@ def cmd_accounts() -> int:
     with SessionLocal() as session:
         for a in session.scalars(select(Account).order_by(Account.id)):
             inst = a.institution.name if a.institution else "-"
-            flag = "  (hidden)" if a.hidden else ""
+            flag = ("  (hidden)" if a.hidden else "") + ("" if a.include_in_net_worth else "  (not counted)")
             print(f"  {a.id:>3}  {inst:<20} {a.display_name:<36} {a.kind.value}{flag}")
     return 0
 
@@ -199,6 +203,24 @@ def cmd_rename(account_id: int, nickname: str) -> int:
         acct.nickname = nickname.strip() or None
         session.commit()
         print(f"Account {account_id} is now shown as: {acct.display_name}")
+    return 0
+
+
+def cmd_set_counted(account_id: int, counted: bool) -> int:
+    """Choose whether an account counts toward net worth (e.g. unvested stock awards don't)."""
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Account
+
+    init_db()
+    with SessionLocal() as session:
+        acct = session.get(Account, account_id)
+        if acct is None:
+            print(f"No account with id {account_id}. Run `python -m app.cli accounts`.")
+            return 1
+        acct.include_in_net_worth = counted
+        session.commit()
+        state = "counted in net worth" if counted else "NOT counted in net worth (shown separately)"
+        print(f"{acct.display_name} is now {state}.")
     return 0
 
 
@@ -332,6 +354,10 @@ def main(argv: list[str] | None = None) -> int:
     ls.add_argument("--unpaid-interest", help="interest accrued but not yet paid on the statement date "
                     "(e.g. after a principal-only payment), e.g. 12.34")
     sub.add_parser("loans", help="show hand-entered loans")
+    for cmd, text in (("exclude", "stop counting an account in net worth"),
+                      ("include", "count an account in net worth again")):
+        sp = sub.add_parser(cmd, help=text)
+        sp.add_argument("account_id", type=int)
     for cmd in ("hide", "unhide"):
         sp = sub.add_parser(cmd, help=f"{cmd} an account on the dashboard")
         sp.add_argument("account_id", type=int)
@@ -353,6 +379,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_loan_set(args)
     if args.command == "loans":
         return cmd_loans()
+    if args.command in ("exclude", "include"):
+        return cmd_set_counted(args.account_id, args.command == "include")
     if args.command in ("hide", "unhide"):
         return cmd_set_hidden(args.account_id, args.command == "hide")
     if args.command == "rename":
