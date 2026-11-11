@@ -78,7 +78,7 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    Start fresh from a date: add `"tracking_start": "YYYY-MM-DD"` to `data/household.json`; the dashboard then shows nothing earlier (older data is kept so recurring bills can still be recognised).
    The budget year at a glance (income, expenses, saved, invested, month by month): `python -m app.cli year` or the "This budget year" section. Deposits that aren't regular pay or interest are listed for you to explain: mark a reimbursement with the expense's category (`categorize ID Education --note "..."`) so it reduces that expense, or `categorize ID Income` if it's income.
    Recurring money (found automatically: paychecks, interest, bills, subscriptions, loan payments, investing): `python -m app.cli recurring`. Expected income such as a twice-yearly bonus: `python -m app.cli recurring-add --income --name "Bonus" --amount 0 --cadence semiannual --months "6,12"`. Add one that never hits your accounts (e.g. a share paid through Splitwise) with `python -m app.cli recurring-add --name ... --amount ... --category ...`. Optional friendlier names go in `data/recurring_labels.json` (git-ignored).
-   Weekly settle-up reminder text (who to pay, who to collect from): `python -m app.cli nudge`.
+   Weekly settle-up reminder text (who to pay, who to collect from): `python -m app.cli nudge`; one person to pay this week (biggest debt first): `python -m app.cli nudge --pay-one`.
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

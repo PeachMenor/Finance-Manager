@@ -58,3 +58,34 @@ def build_nudge(session: Session, now: datetime | None = None, currency: str = "
         if len(text) <= MAX_CHARS:
             return text
     return text[: MAX_CHARS - 1] + "…"
+
+
+def build_pay_one(session: Session, now: datetime | None = None, currency: str = "USD") -> str | None:
+    """Friday reminder: settle with ONE person this week, biggest debt first.
+
+    Next week's screenshot shows them settled, so the next person comes up.
+    Also mentions the biggest amount owed to you, as a prompt to ask for it.
+    """
+    now = now or datetime.now(timezone.utc)
+    rows = session.scalars(select(PersonBalance).where(PersonBalance.currency == currency)).all()
+    pay = sorted((p for p in rows if p.amount_cents < 0), key=lambda p: p.amount_cents)
+    collect = sorted((p for p in rows if p.amount_cents > 0), key=lambda p: -p.amount_cents)
+    if not pay and not collect:
+        return None
+    parts = []
+    if pay:
+        first, rest = pay[0], pay[1:]
+        parts.append(f"This week, pay {_first(first.name)} {_short(first.amount_cents)} on Splitwise")
+        if rest:
+            parts.append(f"{len(rest)} more after that ({_short(sum(p.amount_cents for p in rest))})")
+    else:
+        parts.append("You don't owe anyone on Splitwise")
+    if collect:
+        parts.append(f"Ask {_first(collect[0].name)} for {_short(collect[0].amount_cents)}")
+    updated = session.scalar(select(func.max(PersonBalance.updated_at)))
+    if updated and updated.tzinfo is None:
+        updated = updated.replace(tzinfo=timezone.utc)
+    if updated and (now - updated).days >= STALE_AFTER_DAYS:
+        parts.append("Send a new screenshot")
+    text = ". ".join(parts) + "."
+    return text if len(text) <= MAX_CHARS else text[: MAX_CHARS - 1] + "…"

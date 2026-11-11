@@ -34,3 +34,14 @@ def test_nudge_warns_when_balances_are_old(session):
 
 def test_nothing_to_settle(session):
     assert build_nudge(session) is None
+
+
+def test_pay_one_person_at_a_time(session):
+    from app.services.nudge import build_pay_one
+
+    _people(session, [("Sam Lee", -12_345), ("Alex Kim", -500), ("Jo Park", 40_000)])
+    assert build_pay_one(session) == "This week, pay Sam $123 on Splitwise. 1 more after that ($5). Ask Jo for $400."
+    _people(session, [("Alex Kim", -500)])  # next week's screenshot: Sam paid, nobody owes you
+    assert build_pay_one(session) == "This week, pay Alex $5 on Splitwise."
+    _people(session, [])
+    assert build_pay_one(session) is None

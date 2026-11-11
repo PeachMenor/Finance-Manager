@@ -248,14 +248,15 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     return 0
 
 
-def cmd_nudge() -> int:
+def cmd_nudge(pay_one: bool = False) -> int:
     """Print the weekly settle-up reminder (used by the scheduled phone nudge)."""
     from app.db.base import SessionLocal, init_db
-    from app.services.nudge import build_nudge
+    from app.services.nudge import build_nudge, build_pay_one
 
     init_db()
     with SessionLocal() as session:
-        print(build_nudge(session) or "Splitwise: all settled up.")
+        text = build_pay_one(session) if pay_one else build_nudge(session)
+        print(text or "Splitwise: all settled up.")
     return 0
 
 
@@ -698,7 +699,8 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
-    sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
+    nu = sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
+    nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
     sub.add_parser("year", help="budget year so far: income, expenses, saved, invested")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
@@ -783,7 +785,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "budgets":
         return cmd_budgets()
     if args.command == "nudge":
-        return cmd_nudge()
+        return cmd_nudge(args.pay_one)
     if args.command == "splitwise-import-expenses":
         return cmd_splitwise_import_expenses(args.file)
     if args.command == "people-import":

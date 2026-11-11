@@ -46,7 +46,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Shared expenses count only your share: Splitwise expenses matched to bank/card charges (same amount, up to 31 days before / 7 after); expenses others paid add your share; settle-ups stay transfers
 - [x] 🧑 First Splitwise exports and balances imported (November)
 - [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
-- [x] 🤖 Weekly settle-up nudge (`nudge` command; scheduled phone notification)
+- [x] 🤖 Weekly settle-up nudge (`nudge` command); Friday 6 PM phone reminder to pay one person (`--pay-one`, biggest first)
 - [x] 🧑 Splitwise: weekly Friday screenshots of balances (earlier months not needed; rent handled by the household rule)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)
