@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 from app.db.models import Account, AccountKind, DataSource, Transaction
+from sqlalchemy import select
 from app.services.spending import CATEGORIES, classify, monthly_summary
 
 
@@ -149,3 +150,74 @@ def test_rent_base_splits_utilities_out(session, tmp_path):
     m = monthly_summary(session, months=1, today=date(2026, 11, 20))[0]
     # your 1,000 share: 1,800/2,000 of it is rent (900), the rest utilities (100)
     assert m["by_category"] == {"Rent": 90_000, "Bills & utilities": 10_000}
+
+
+# ---- household rent rule (made-up: base rent 2,000, your share 1,000) ----
+from app.services.spending import RentRule  # noqa: E402
+
+RULE = RentRule(base_cents=200_000, your_share_cents=100_000, people=2)
+
+
+def _rent_via_card(session, chk, card, d, cents, tag):
+    """Rent paid through a rent-rewards card: bank -> card company, card credit, card rent charge."""
+    _add(session, chk, f"{tag}1", d, -cents, "RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT")
+    _add(session, card, f"{tag}2", d, cents, "INCOME", "INCOME_RENTAL")
+    _add(session, card, f"{tag}3", d, -cents, "RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT")
+
+
+def _two_accounts(session):
+    chk = Account(name="Checking", kind=AccountKind.CHECKING, source=DataSource.MANUAL, external_id="c", balance_cents=0)
+    card = Account(name="Card", kind=AccountKind.CREDIT_CARD, source=DataSource.MANUAL, external_id="k", balance_cents=0)
+    session.add_all([chk, card])
+    session.flush()
+    return chk, card
+
+
+def test_fixed_rent_share_every_month(session):
+    chk, card = _two_accounts(session)
+    _rent_via_card(session, chk, card, date(2026, 9, 2), 200_000, "sep")    # exactly base rent
+    _rent_via_card(session, chk, card, date(2026, 11, 2), 220_000, "nov")   # base + 200 utilities
+    _add(session, chk, "oct-food", date(2026, 10, 3), -5_000, "FOOD_AND_DRINK")  # Oct: housemate paid rent
+    _add(session, chk, "settle", date(2026, 10, 5), -95_000, "TRANSFER_OUT")     # net settle-up: transfer
+    session.commit()
+    m = {x["month"]: x for x in monthly_summary(session, months=3, today=date(2026, 11, 20), rent_rule=RULE)}
+    assert m["2026-09"]["by_category"] == {"Rent": 100_000}
+    assert m["2026-10"]["by_category"] == {"Rent": 100_000, "Food": 5_000}
+    # November: your rent share + half of the 200 utilities billed with rent
+    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Bills & utilities": 10_000}
+
+
+def test_unexplained_extra_is_flagged(session):
+    chk, card = _two_accounts(session)
+    _rent_via_card(session, chk, card, date(2026, 8, 18), 350_000, "aug")  # 1,500 above base
+    session.commit()
+    m = monthly_summary(session, months=1, today=date(2026, 8, 25), rent_rule=RULE)[0]
+    assert m["by_category"] == {"Rent": 100_000, "Other": 150_000}
+    assert m["flags"] == ["rent payment on 2026-08-18 was 1,500.00 above the base rent (unexplained)"]
+
+
+def test_splitwise_rent_entry_explains_utilities(session):
+    chk, card = _two_accounts(session)
+    _rent_via_card(session, chk, card, date(2026, 11, 2), 220_000, "nov")
+    _split(session, date(2026, 11, 1), "Rent", 220_000, 220_000, 110_000, "Rent")
+    session.commit()
+    se = session.scalar(select(SplitExpense))
+    se.split_parts = '{"Rent": 100000, "Bills & utilities": 10000}'
+    session.commit()
+    m = monthly_summary(session, months=1, today=date(2026, 11, 20), rent_rule=RULE)[0]
+    assert m["by_category"] == {"Rent": 100_000, "Bills & utilities": 10_000}  # not counted twice
+
+
+def test_recategorized_rent_lookalike_moves_out_of_rent(session):
+    from app import cli
+
+    chk, card = _two_accounts(session)
+    _rent_via_card(session, chk, card, date(2026, 9, 28), 80_000, "fee")  # a school fee paid via the rent portal
+    session.commit()
+    t = session.scalar(select(Transaction).where(Transaction.external_id == "fee1"))
+    assert cli.main(["categorize", str(t.id), "Education", "--note", "Program fee"]) == 0
+    session.expire_all()
+    m = monthly_summary(session, months=1, today=date(2026, 9, 30), rent_rule=RULE)[0]
+    assert m["by_category"] == {"Rent": 100_000, "Education": 80_000}
+    assert session.get(Transaction, t.id).note == "Program fee"
+    assert cli.main(["categorize", str(t.id), "Nonsense"]) == 1

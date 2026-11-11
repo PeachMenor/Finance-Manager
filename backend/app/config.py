@@ -28,6 +28,12 @@ class Settings:
         return f"sqlite:///{self.database_path}"
 
 
+def data_dir() -> Path:
+    """Folder for private, git-ignored files (Splitwise exports, labels, household
+    settings). FM_DATA_DIR overrides it; tests point it at an empty temp folder."""
+    return Path(os.getenv("FM_DATA_DIR") or REPO_ROOT / "data")
+
+
 def default_database_path() -> Path:
     """Real accounts and Plaid's fake sandbox banks never share a database.
 

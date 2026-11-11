@@ -11,6 +11,8 @@
     python -m app.cli hide ID / unhide ID   leave an account off lists (still counted)
     python -m app.cli exclude ID / include ID  stop / resume counting an account in net worth
     python -m app.cli loan-set ...          add or update a loan entered by hand (see --help)
+    python -m app.cli txn-find TEXT         search transactions (text, amount or note)
+    python -m app.cli categorize ID CAT     your own category for a transaction (--note "...")
     python -m app.cli loans                 show hand-entered loans: estimated balance, payoff
 
 `demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
@@ -263,7 +265,9 @@ def cmd_recurring() -> int:
 
     init_db()
     with SessionLocal() as session:
-        bills = detect_recurring(session, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
+        from app.config import data_dir
+
+        bills = detect_recurring(session, labels_path=data_dir() / "recurring_labels.json")
         titles = {"bill": "BILLS & SUBSCRIPTIONS", "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING"}
         for kind, title in titles.items():
             group = [b for b in bills if b.kind == kind]
@@ -301,6 +305,60 @@ def cmd_recurring_add(a) -> int:
         row.day_of_month, row.paid_via, row.note = a.day, a.paid_via, a.note
         session.commit()
         print(f"Saved monthly bill '{a.name}'.")
+    return 0
+
+
+def cmd_txn_find(text: str, limit: int = 30) -> int:
+    """Search transactions by description, amount (e.g. 42.50) or note."""
+    from sqlalchemy import or_, select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Transaction
+    from app.services.money import format_cents, to_cents
+    from app.services.spending import classify
+
+    init_db()
+    with SessionLocal() as session:
+        conds = [Transaction.description.ilike(f"%{text}%"), Transaction.note.ilike(f"%{text}%")]
+        try:
+            cents = to_cents(text)
+            conds.append(Transaction.amount_cents.in_([cents, -cents]))
+        except Exception:
+            pass
+        rows = session.scalars(select(Transaction).where(or_(*conds))
+                               .order_by(Transaction.posted_on.desc()).limit(limit)).all()
+        for t in rows:
+            c = classify(t.provider_category, t.provider_category_detailed, t.amount_cents, t.category)
+            label = t.category or c.category or c.kind
+            note = f"  [{t.note}]" if t.note else ""
+            print(f"  #{t.id:<5} {t.posted_on}  {format_cents(t.amount_cents):>12}  "
+                  f"{t.account.display_name[:22]:<22} {t.description[:40]:<40} {label}{note}")
+        if not rows:
+            print("No matching transactions.")
+    return 0
+
+
+def cmd_categorize(txn_id: int, category: str, note: str | None) -> int:
+    """Set your own category (and optional note) on one transaction. Sync never overwrites it."""
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Transaction
+    from app.services.spending import CATEGORIES
+
+    allowed = CATEGORIES + ["Income", "Transfer", "auto"]
+    if category not in allowed:
+        print(f"Category must be one of {allowed} ('auto' clears your override)")
+        return 1
+    init_db()
+    with SessionLocal() as session:
+        t = session.get(Transaction, txn_id)
+        if t is None:
+            print(f"No transaction #{txn_id}. Use `python -m app.cli txn-find TEXT`.")
+            return 1
+        t.category = None if category == "auto" else category
+        if note is not None:
+            t.note = note or None
+        session.commit()
+        print(f"#{t.id} {t.posted_on} {t.description}: {t.category or 'automatic'}" + (f" [{t.note}]" if t.note else ""))
     return 0
 
 
@@ -503,6 +561,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("summary", help="print net worth from your real database")
     sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
+    tf = sub.add_parser("txn-find", help="search transactions by text, amount or note")
+    tf.add_argument("text")
+    cz = sub.add_parser("categorize", help="set your own category / note on a transaction")
+    cz.add_argument("txn_id", type=int)
+    cz.add_argument("category")
+    cz.add_argument("--note")
     ra = sub.add_parser("recurring-add", help="add a monthly bill by hand")
     ra.add_argument("--name", required=True)
     ra.add_argument("--amount", required=True, help="per month, your share")
@@ -550,6 +614,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_demo()
     if args.command == "plaid-sandbox-check":
         return cmd_plaid_sandbox_check()
+    if args.command == "txn-find":
+        return cmd_txn_find(args.text)
+    if args.command == "categorize":
+        return cmd_categorize(args.txn_id, args.category, args.note)
     if args.command == "recurring":
         return cmd_recurring()
     if args.command == "recurring-add":

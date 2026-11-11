@@ -54,7 +54,9 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [ ] 🧑 Apple Card statements (purchases currently missing: only card payments are visible)
 - [ ] 🤖 Annual expenses with monthly set-aside
 - [ ] 🤖 Credit card due dates and utilization
-- [ ] 🧑🤖 Category corrections you can make
+- [x] 🧑🤖 Category corrections you can make (`txn-find`, `categorize` with notes); Education category added
+- [x] 🤖 Household rent rule: fixed rent share every month; utilities billed with rent at your share; unexplained extras flagged
+- [ ] 🧑 Explain the flagged extra on one rent payment
 
 ## Stage 4 — Budgets
 - [ ] Not started
@@ -84,5 +86,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Categories: Rent, Food, Shopping, Transport, Entertainment, Travel, Bills & utilities, Other, in a fixed order with fixed colours | Colour follows the category across months; validated colour-blind-safe palette |
 | 2026-11-10 | Headline savings rate uses the last complete month | The current month is still in progress |
 | 2026-11-10 | Splitwise balances stay in net worth (owed to you − you owe) | User's choice: money owed to you counts as yours |
+| 2026-11-10 | Rent = fixed monthly share, regardless of who paid the landlord | Rent payments and housemate settle-ups move irregularly between people |
+| 2026-11-10 | Private settings (labels, household rule) live in the data folder; tests use an empty temp one | Tests must never read real personal files |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

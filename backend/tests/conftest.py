@@ -11,6 +11,8 @@ _TMP_DIR = tempfile.mkdtemp(prefix="fm-test-")
 os.environ["FM_DATABASE_PATH"] = str(Path(_TMP_DIR) / "test.db")
 # Never let tests start the automatic sync (it would call the real Plaid with your keys).
 os.environ["FM_AUTO_SYNC_HOURS"] = "0"
+# Never read your real private files (labels, household rent rule) in tests.
+os.environ["FM_DATA_DIR"] = str(Path(_TMP_DIR) / "data")
 
 import pytest  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402

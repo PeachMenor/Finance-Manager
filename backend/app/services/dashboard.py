@@ -19,10 +19,10 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem, SplitExpense
 from app.services.loans import estimate_balance, months_to_payoff
-from app.config import REPO_ROOT
+from app.config import data_dir
 from app.services.networth import compute_net_worth
 from app.services.recurring import detect_recurring, monthly_total_cents
-from app.services.spending import CATEGORIES, monthly_summary
+from app.services.spending import CATEGORIES, RentRule, monthly_summary
 
 GROUPS = [
     ("cash", "Cash & savings", {AccountKind.CHECKING, AccountKind.SAVINGS, AccountKind.CASH}),
@@ -102,7 +102,7 @@ def net_worth_history(session: Session, currency: str = "USD") -> list[dict]:
 
 
 def _recurring(session: Session, today: date) -> dict:
-    bills = detect_recurring(session, today=today, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
+    bills = detect_recurring(session, today=today, labels_path=data_dir() / "recurring_labels.json")
     return {
         "monthly_total_cents": monthly_total_cents(bills),  # bills & subscriptions only
         "totals": {k: monthly_total_cents(bills, k) for k in ("bill", "loan", "saving")},
@@ -161,7 +161,8 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "recurring": _recurring(session, today),
         "spending": {
             "categories": CATEGORIES,
-            "months": monthly_summary(session, months=6, today=today),
+            "months": monthly_summary(session, months=6, today=today,
+                                      rent_rule=RentRule.load(data_dir() / "household.json")),
             # Earliest Splitwise expense imported: shares are applied from here on.
             "shared_from": _iso_date(session.scalar(select(func.min(SplitExpense.spent_on)))),
         },
