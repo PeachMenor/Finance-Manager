@@ -274,24 +274,36 @@ def sms_with_confirm_link(headline: str, page: str | None) -> str:
                       f"Paid part, or not yet? {base}"])
 
 
-def send_text(message: str) -> bool:
-    """Text your own phone from this Mac's Messages app (as a regular text, relayed
-    through your iPhone; an iMessage to your own number arrives silently).
+def _smtp_text(message: str, to: str) -> bool:
+    """Email `message` to your carrier's email-to-text address through Gmail's mail
+    server (FM_SMTP_USER / FM_SMTP_PASSWORD in .env, a Google app password). Mail
+    sent this way keeps links exactly as written, and arrives as a normal text
+    from another sender, so your phone shows a notification."""
+    import os
+    import smtplib
+    from email.message import EmailMessage
 
-    Used instead of email-to-text because Gmail wraps every link in a
-    google.com redirect page. The number is "sms_phone" in the private
-    data/contact.json. Returns True if Messages accepted it.
-    """
-    import json
+    from app.config import get_settings  # noqa: F401  (loads .env)
+
+    user, password = os.getenv("FM_SMTP_USER"), (os.getenv("FM_SMTP_PASSWORD") or "").replace(" ", "")
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = user, to, "Finance"
+    msg.set_content(message)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+            smtp.login(user, password)
+            smtp.send_message(msg)
+        return True
+    except (smtplib.SMTPException, OSError) as e:
+        print(f"Gmail couldn't send the text: {type(e).__name__}")
+        return False
+
+
+def _messages_text(message: str, phone: str) -> bool:
+    """Fallback: send from this Mac's Messages app as a regular text, relayed through
+    your iPhone. Works, but a text to your own number arrives without a notification."""
     import subprocess
 
-    from app.config import data_dir
-
-    p = data_dir() / "contact.json"
-    phone = json.loads(p.read_text()).get("sms_phone") if p.exists() else None
-    if not phone:
-        print("No phone set: add sms_phone to data/contact.json.")
-        return False
     script = (
         "on run argv\n with timeout of 45 seconds\n tell application \"Messages\"\n"
         "  set svc to 1st account whose service type = SMS\n"
@@ -302,6 +314,30 @@ def send_text(message: str) -> bool:
     if r.returncode != 0:
         print("Messages couldn't send: " + r.stderr.strip())
     return r.returncode == 0
+
+
+def send_text(message: str) -> bool:
+    """Text your own phone. Returns True if it was handed off.
+
+    Uses Gmail's mail server to your email-to-text address ("sms_to" in the private
+    data/contact.json) when FM_SMTP_USER / FM_SMTP_PASSWORD are set; otherwise the
+    Messages app to "sms_phone". (Not the Gmail connector: it wraps every link in a
+    google.com redirect page.)
+    """
+    import json
+    import os
+
+    from app.config import data_dir, get_settings  # noqa: F401  (loads .env)
+
+    p = data_dir() / "contact.json"
+    contact = json.loads(p.read_text()) if p.exists() else {}
+    password = os.getenv("FM_SMTP_PASSWORD") or ""
+    if os.getenv("FM_SMTP_USER") and password and not password.startswith("paste-") and contact.get("sms_to"):
+        return _smtp_text(message, contact["sms_to"])
+    if contact.get("sms_phone"):
+        return _messages_text(message, contact["sms_phone"])
+    print("No phone set: add sms_to (and FM_SMTP_* in .env) or sms_phone to data/contact.json.")
+    return False
 
 
 def cmd_text_me(message: str) -> int:

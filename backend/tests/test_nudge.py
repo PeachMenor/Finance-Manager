@@ -131,3 +131,35 @@ def test_send_text_needs_a_phone(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
     assert cli.send_text("hi") is False
     assert "sms_phone" in capsys.readouterr().out
+
+
+def test_send_text_uses_gmail_smtp_when_configured(tmp_path, monkeypatch):
+    import json
+    import smtplib
+
+    from app import cli
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("FM_SMTP_USER", "me@example.com")
+    monkeypatch.setenv("FM_SMTP_PASSWORD", "abcd efgh")
+    (tmp_path / "contact.json").write_text(json.dumps({"sms_to": "5550000000@sms.example.com"}))
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            sent["host"] = host
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def login(self, user, password):
+            sent["login"] = (user, password)
+        def send_message(self, msg):
+            sent["to"], sent["body"] = msg["To"], msg.get_content()
+
+    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSMTP)
+    link = "https://example.com/page#paid"
+    assert cli.send_text("Pay Sam. " + link) is True
+    assert sent["login"] == ("me@example.com", "abcdefgh")  # spaces removed
+    assert sent["to"] == "5550000000@sms.example.com"
+    assert link in sent["body"]  # link kept exactly as written
