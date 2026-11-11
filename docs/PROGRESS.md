@@ -74,7 +74,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [ ] 🤖 Alerts when a budget is near or over (e.g. in the weekly nudge)
 
 ## Stage 5 — Monthly reports
-- [ ] Not started
+- [x] 🤖 Monthly PDF report: income, expenses, saved, net worth, chosen account values; vs previous month and season; spending by category; budgets; highlights
+- [x] 🧑 Accounts in the report and delivery email chosen (private)
+- [x] 🤖 Scheduled on the 1st of every month: PDF to phone (Remote Control) and email, plus a notification; first run Dec 1, 2026 for November
+- [ ] 🧑 Review the first real report (Dec 1)
 
 ---
 
@@ -108,5 +111,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Budget year counts 12 rent months (those starting inside the year) | A year starting mid-month shouldn't include that month's rent |
 | 2026-11-10 | Employer reimbursements reduce the expense they repay, not counted as income | Keeps both income and spending honest |
 | 2026-11-10 | Dashboard starts at a tracking start date (Nov 1, 2026); older data kept but hidden | Easier to track going forward; bill detection still needs past charges |
+| 2026-11-11 | Report net worth includes latest Splitwise balances | Matches the dashboard's net worth formula |
+| 2026-11-11 | Seasons: Winter Dec–Feb, Spring Mar–May, Summer Jun–Aug, Fall Sep–Nov | Compares like-for-like quarters of the year |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

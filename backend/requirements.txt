@@ -4,6 +4,7 @@ uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 python-dotenv>=1.0
 httpx>=0.27          # Plaid and Splitwise API calls
+reportlab>=4.0       # monthly PDF reports
 
 # Tests
 pytest>=8.0

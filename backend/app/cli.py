@@ -502,6 +502,36 @@ def cmd_year() -> int:
     return 0
 
 
+def cmd_report(month: str | None, previous: bool) -> int:
+    """Build the monthly PDF report. Prints the PDF path, then a one-line summary."""
+    from datetime import date
+
+    from app.config import data_dir, tracking_start
+    from app.db.base import SessionLocal, init_db
+    from app.services.budgets import BudgetConfig
+    from app.services.money import format_cents
+    from app.services.report import build_month_report, load_holdings, prev_month
+    from app.services.report_pdf import month_name, pct, render_month_report
+    from app.services.spending import RentRule
+
+    today = date.today()
+    key = month or (prev_month(f"{today.year:04d}-{today.month:02d}") if previous else f"{today.year:04d}-{today.month:02d}")
+    init_db()
+    with SessionLocal() as session:
+        r = build_month_report(session, key, today=today, tracking_start=tracking_start(),
+                               rent_rule=RentRule.load(data_dir() / "household.json"),
+                               budgets=BudgetConfig.load(data_dir() / "budgets.json"),
+                               holdings=load_holdings(data_dir() / "report.json"))
+    suffix = "" if r["complete"] else "-so-far"
+    path = render_month_report(r, data_dir() / "reports" / f"finance-report-{key}{suffix}.pdf")
+    t = r["this"]
+    print(path)
+    print(f"{month_name(key)}{'' if r['complete'] else ' (so far)'}: income {format_cents(t['income_cents'])}, "
+          f"expenses {format_cents(t['expenses_cents'])}, saved {pct(t['savings_rate'])}, "
+          f"net worth {format_cents(r['net_worth_end_cents'] or 0)}")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -703,6 +733,9 @@ def main(argv: list[str] | None = None) -> int:
     nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
     sub.add_parser("year", help="budget year so far: income, expenses, saved, invested")
+    rp = sub.add_parser("report", help="monthly PDF report (saved in data/reports/)")
+    rp.add_argument("--month", help="YYYY-MM (default: this month so far)")
+    rp.add_argument("--previous-month", action="store_true", help="last month (what the 1st-of-month run uses)")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
     rr = sub.add_parser("recurring-remove", help="remove a bill or expected income you added by hand")
     rr.add_argument("name")
@@ -780,6 +813,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_recurring_remove(args.name)
     if args.command == "recurring-add":
         return cmd_recurring_add(args)
+    if args.command == "report":
+        return cmd_report(args.month, args.previous_month)
     if args.command == "year":
         return cmd_year()
     if args.command == "budgets":
