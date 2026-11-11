@@ -17,8 +17,9 @@ shared expenses, rent rule applied), counted from the start of the budget year.
 Status:
 - monthly lines: this month's spending vs the cap (the first, partial month of
   the budget year gets a pro-rated cap): over / near (80%+) / on track
-- annual lines: over / near (80%+ of the year) / ahead of pace (more than a
-  month's worth above where you'd be spending evenly) / on track
+- annual lines: spending adds up across the whole budget year and is flagged
+  only against the yearly limit: over / near (80%+) / on track. No per-month
+  pacing: these costs are lumpy (tuition, a doctor's bill, a trip).
 """
 
 import calendar
@@ -120,8 +121,6 @@ def budget_progress(session: Session, cfg: BudgetConfig, today: date | None = No
                 status = "over"
             elif ln.annual_cents and year_spent >= ln.annual_cents * NEAR:
                 status = "near"
-            elif year_spent > expected + ln.annual_cents / 12:
-                status = "ahead of pace"
             else:
                 status = "on track"
             row.update({"period": "annual", "status": status})

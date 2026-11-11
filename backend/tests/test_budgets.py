@@ -73,8 +73,8 @@ def test_annual_pace(session, tmp_path):
     lines = [{"name": "Trips", "category": "Transport & travel", "annual": 1200}]
     _t(session, a, "flight", date(2026, 11, 15), 30_000, "TRAVEL", "TRAVEL_FLIGHTS")
     session.commit()
-    # ~2% of the year gone, 25% of the budget spent: more than a month ahead of an even pace
-    assert budget_progress(session, _cfg(tmp_path, lines), today=date(2026, 11, 20))["lines"][0]["status"] == "ahead of pace"
+    # 25% of the yearly limit spent early in the year: still fine (only 80%+ is flagged)
+    assert budget_progress(session, _cfg(tmp_path, lines), today=date(2026, 11, 20))["lines"][0]["status"] == "on track"
     _t(session, a, "hotel", date(2026, 11, 16), 70_000, "TRAVEL", "TRAVEL_LODGING")
     session.commit()
     assert budget_progress(session, _cfg(tmp_path, lines), today=date(2026, 11, 20))["lines"][0]["status"] == "near"
