@@ -275,7 +275,8 @@ def sms_with_confirm_link(headline: str, page: str | None) -> str:
 
 
 def send_text(message: str) -> bool:
-    """Text your own phone from this Mac's Messages app (iMessage).
+    """Text your own phone from this Mac's Messages app (as a regular text, relayed
+    through your iPhone; an iMessage to your own number arrives silently).
 
     Used instead of email-to-text because Gmail wraps every link in a
     google.com redirect page. The number is "sms_phone" in the private
@@ -293,7 +294,7 @@ def send_text(message: str) -> bool:
         return False
     script = (
         "on run argv\n with timeout of 45 seconds\n tell application \"Messages\"\n"
-        "  set svc to 1st account whose service type = iMessage\n"
+        "  set svc to 1st account whose service type = SMS\n"
         "  send (item 1 of argv) to participant (item 2 of argv) of svc\n"
         " end tell\n end timeout\nend run"
     )
