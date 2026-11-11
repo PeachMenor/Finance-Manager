@@ -24,6 +24,8 @@
     /* Categorical slots (validated reference palette, fixed order) */
     --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
     --c5: #e87ba4; --c6: #008300; --c7: #6250d6; --c8: #e34948;
+    --owed: #1a7f37;          /* money owed to you */
+    --owe: #c62828;           /* money you owe */
     --serif: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino, Georgia, serif;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   }
@@ -36,6 +38,7 @@
       --accent: #6aa8d8; --accent-text: #0e0e0c; --bar: #3d3c37; --grid: #24231f; --other: #77746c;
       --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
       --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+      --owed: #4ac26b; --owe: #ff6b6b;
     }
   }
   :root[data-theme="dark"] {
@@ -45,6 +48,7 @@
     --accent: #6aa8d8; --accent-text: #0e0e0c; --bar: #3d3c37; --grid: #24231f; --other: #77746c;
     --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
     --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+    --owed: #4ac26b; --owe: #ff6b6b;
   }
 
   * { box-sizing: border-box; }
@@ -129,6 +133,13 @@
   .rows .inst { font-size: 12px; color: var(--text-muted); }
   .rows .amt { white-space: nowrap; text-align: right; }
   .zero { color: var(--text-muted); }
+  .owed { color: var(--owed); }
+  .owe { color: var(--owe); }
+  /* Page tabs */
+  nav.tabs { display: flex; gap: 4px; }
+  nav.tabs a { font: 500 13px/1 var(--sans); padding: 9px 14px; border-radius: 999px; color: var(--text-secondary);
+    text-decoration: none; border: 1px solid transparent; }
+  nav.tabs a[aria-current="page"] { color: var(--text-primary); border-color: var(--rule-strong); background: var(--surface-1); }
   .note { font-size: 12.5px; color: var(--text-muted); margin: 10px 0 0; line-height: 1.5; }
   details { margin-top: 10px; font-size: 13px; color: var(--text-secondary); }
   summary { cursor: pointer; }
@@ -147,8 +158,11 @@
       <div class="small muted" id="as-of">Loading…</div>
     </div>
     <div class="actions">
+      <nav class="tabs" aria-label="Pages">
+        <a href="/" aria-current="page">Ledger</a>
+        <a href="/link">Linked accounts</a>
+      </nav>
       <button class="primary" id="sync">Sync now</button>
-      <a class="button" href="/link">Linked accounts</a>
     </div>
   </header>
   <div id="error" role="alert"></div>
@@ -156,7 +170,7 @@
   <!-- KPI strip -->
   <section class="kpis" aria-label="Key figures">
     <div class="kpi hero">
-      <div class="eyebrow">Net worth</div>
+      <div class="eyebrow">Net worth · today</div>
       <div class="value num" id="k-networth">–</div>
       <div class="sub" id="k-networth-sub"></div>
     </div>
@@ -166,12 +180,12 @@
       <div class="sub" id="k-spent-sub"></div>
     </div>
     <div class="kpi">
-      <div class="eyebrow">Savings rate</div>
+      <div class="eyebrow" id="k-rate-label">Savings rate</div>
       <div class="value num" id="k-rate">–</div>
       <div class="sub" id="k-rate-sub"></div>
     </div>
     <div class="kpi">
-      <div class="eyebrow">Debts</div>
+      <div class="eyebrow">Debts · today</div>
       <div class="value num" id="k-debts">–</div>
       <div class="sub" id="k-debts-sub"></div>
     </div>
@@ -183,7 +197,7 @@
       <div>
         <div class="block-head">
           <h2>Monthly spending</h2>
-          <span class="small muted">Select a month to see where it went</span>
+          <span class="small muted">Select a month: the figures above and the breakdown follow it</span>
         </div>
         <div class="chart-wrap" id="bars-wrap">
           <svg class="chart" id="bars" role="img" aria-label="Spending by month, with savings rate under each month"></svg>
@@ -212,11 +226,11 @@
   <!-- Recurring bills -->
   <section class="block">
     <div class="block-head">
-      <h2>Subscriptions &amp; bills</h2>
+      <h2>Recurring money</h2>
       <span class="small muted" id="bills-total"></span>
     </div>
     <div id="bills"></div>
-    <p class="note">Found automatically: charges from the same merchant, about a month apart, at the same price (one price change allowed). Shared bills show your share. Loan payments and investing aren't spending, but they leave your accounts every month.</p>
+    <p class="note">Found automatically: charges from the same merchant, about a month apart, at the same price (one price change allowed); paychecks and interest from regular deposits. Shared bills show your share. "✓ paid" bills this month are already in this month's spending. Loan payments and investing aren't spending, but they leave your accounts every month.</p>
   </section>
 
   <!-- Net worth over time -->
@@ -281,27 +295,26 @@ let selectedMonth = null;
 
 // ---------- KPIs ----------
 function renderKpis(d) {
-  const months = d.spending.months.filter((m) => m.has_data);
-  const cur = d.spending.months.at(-1);
-  const lastFull = [...months].reverse().find((m) => !m.partial && m.savings_rate != null);
+  const all = d.spending.months;
+  const idx = Math.max(0, all.findIndex((m) => m.month === selectedMonth));
+  const cur = all[idx] || all.at(-1);       // the month you selected (defaults to last complete month)
+  const prev = idx > 0 ? all[idx - 1] : null;
   document.getElementById("k-networth").textContent = money(d.net_worth_cents);
   document.getElementById("k-networth-sub").textContent =
     `${money0(d.assets_cents)} assets · ${money0(d.liabilities_cents)} debts` +
     (d.not_counted.total_cents ? ` · ${money0(d.not_counted.total_cents)} not counted` : "");
 
-  document.getElementById("k-spent-label").textContent = `Spent · ${monthName(cur.month, "long")}`;
+  const soFar = cur.partial ? " (so far)" : "";
+  document.getElementById("k-spent-label").textContent = `Spent · ${monthName(cur.month, "long")}${soFar}`;
   document.getElementById("k-spent").textContent = money0(cur.spending_cents);
-  const prev = d.spending.months.at(-2);
-  document.getElementById("k-spent-sub").textContent = prev && prev.has_data
-    ? `${monthName(prev.month)}: ${money0(prev.spending_cents)}${cur.partial ? " · month so far" : ""}`
-    : (cur.partial ? "Month so far" : "");
+  document.getElementById("k-spent-sub").textContent =
+    `Income ${money0(cur.income_cents)}` + (prev && prev.has_data ? ` · ${monthName(prev.month)} spent ${money0(prev.spending_cents)}` : "");
 
-  // Headline rate: the last complete month (the current month is still in progress).
-  const rateMonth = lastFull || cur;
-  document.getElementById("k-rate").textContent = pct(rateMonth.savings_rate);
+  document.getElementById("k-rate-label").textContent = `Savings rate · ${monthName(cur.month, "long")}${soFar}`;
+  document.getElementById("k-rate").textContent = pct(cur.savings_rate);
   document.getElementById("k-rate-sub").textContent =
-    `${monthName(rateMonth.month)}${rateMonth.partial ? " (so far)" : ""} · ${money0(Math.max(rateMonth.saved_cents, 0))} saved` +
-    (rateMonth !== cur ? ` · ${monthName(cur.month)} so far ${pct(cur.savings_rate)}` : "");
+    `${cur.saved_cents < 0 ? "Overspent" : "Saved"} ${money0(Math.abs(cur.saved_cents))}` +
+    (prev && prev.has_data ? ` · ${monthName(prev.month)} ${pct(prev.savings_rate)}` : "");
 
   document.getElementById("k-debts").textContent = money0(d.liabilities_cents);
   const g = Object.fromEntries(d.groups.map((x) => [x.key, x]));
@@ -354,7 +367,7 @@ function renderBars(d) {
       class: "bar-hit", tabindex: m.has_data ? 0 : -1, role: "button",
       "aria-label": `${monthName(m.month, "long")}: spent ${money(m.spending_cents)}, saved ${pct(m.savings_rate)}` });
     if (!m.has_data) return;
-    const choose = () => { selectedMonth = m.month; renderBars(DATA); renderDonut(DATA); };
+    const choose = () => { selectedMonth = m.month; renderKpis(DATA); renderBars(DATA); renderDonut(DATA); };
     hit.addEventListener("click", choose);
     hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } });
     hit.addEventListener("mousemove", () => {
@@ -488,8 +501,8 @@ function renderBills(d) {
     `${money(r.all_monthly_cents)} leaves your accounts each month`;
   if (!r.bills.length) { box.append(el("p", { className: "zero" }, "None found yet.")); return; }
   const shortDate = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const groups = [["bill", "Bills & subscriptions"], ["loan", "Loan payments"], ["saving", "Saving & investing"],
-                  ["planned", "Coming up"]];
+  const groups = [["income", "Income"], ["bill", "Bills & subscriptions"], ["loan", "Loan payments"],
+                  ["saving", "Saving & investing"], ["planned", "Coming up"]];
   for (const [kind, title] of groups) {
     const items = r.bills.filter((b) => b.kind === kind);
     if (!items.length) continue;
@@ -498,16 +511,22 @@ function renderBills(d) {
       el("span", { className: "eyebrow", textContent: title }),
       el("span", { className: "small muted num",
         textContent: kind === "planned" ? `set aside ${money(total)}/mo`
+          : kind === "income" ? `about ${money(total)}/mo`
           : `${money(total)}/mo` + (kind === "bill" ? ` · ${money0(total * 12)}/yr` : "") })));
     const ul = el("ul", { className: "rows bills" });
     for (const b of items) {
+      const cadenceText = { biweekly: "every 2 weeks", monthly: "monthly", semiannual: "twice a year" }[b.cadence] || b.cadence;
+      const when = b.paid_this_month && b.last_charged ? `✓ paid ${shortDate(b.last_charged)}`
+        : b.next_expected ? `next ~${shortDate(b.next_expected)}` : null;
       const meta = kind === "planned"
         ? [b.category, b.note || null, `set aside ${money(b.set_aside_cents)}/mo`].filter(Boolean).join(" · ")
-        : [b.account, kind === "bill" ? b.category : null,
-           b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null].filter(Boolean).join(" · ");
+        : kind === "income"
+        ? [b.account, cadenceText, when, b.monthly_cents && b.cadence !== "monthly" ? `≈ ${money(b.monthly_cents)}/mo` : null,
+           b.note || null].filter(Boolean).join(" · ")
+        : [b.account, kind === "bill" ? b.category : null, when, b.note || null].filter(Boolean).join(" · ");
       ul.append(el("li", { className: b.active ? "" : "inactive" },
         el("div", { className: "name" }, el("div", { textContent: b.name }), el("div", { className: "meta", textContent: meta })),
-        el("div", { className: "amt num", textContent: money(b.amount_cents) })));
+        el("div", { className: "amt num", textContent: kind === "income" && !b.amount_cents ? "amount TBD" : money(b.amount_cents) })));
     }
     box.append(ul);
   }
@@ -542,10 +561,15 @@ function renderLedger(d) {
   const people = el("ul", { className: "rows" });
   if (!d.people.length) people.append(el("li", { className: "zero" }, "No balances yet. Send a Splitwise screenshot."));
   for (const p of d.people) {
+    const owed = p.amount_cents > 0;
     people.append(el("li", {}, el("div", { textContent: p.name }),
-      el("div", { className: "amt num", textContent: p.amount_cents > 0 ? `owes you ${money(p.amount_cents)}` : `you owe ${money(-p.amount_cents)}` })));
+      el("div", { className: "amt num " + (owed ? "owed" : "owe"),
+        textContent: owed ? `owes you ${money(p.amount_cents)}` : `you owe ${money(-p.amount_cents)}` })));
   }
   const net = d.owed_to_you_cents - d.you_owe_cents;
+  people.prepend(el("li", { className: "small" },
+    el("span", { className: "owed", textContent: `Owed to you ${money(d.owed_to_you_cents)}` }),
+    el("span", { className: "owe", textContent: `You owe ${money(d.you_owe_cents)}` })));
   document.getElementById("ledger").replaceChildren(
     group("Cash & savings", money(g.cash.total_cents), rows(g.cash.accounts)),
     group("Investments", money(g.investments.total_cents), rows(g.investments.accounts)),

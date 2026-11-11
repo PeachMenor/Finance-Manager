@@ -124,7 +124,7 @@ def test_label_can_set_category(session, tmp_path):
     labels = tmp_path / "l.json"
     labels.write_text('{"labels": [{"merchant": "WashPay", "label": "Laundry", "category": "Bills & utilities"}]}')
     b = _names(session, labels_path=labels)["Laundry"]
-    assert b.category == "Bills & utilities"
+    assert b.category == "Bills & subscriptions"
 
 
 def test_planned_periodic_expense(session):
@@ -137,3 +137,48 @@ def test_planned_periodic_expense(session):
     assert b.set_aside_cents == 20_000 and "due Dec or Jan" in b.note
     assert monthly_total_cents(bills) == 0 and monthly_total_cents(bills, None) == 0  # not a monthly outflow
     assert monthly_total_cents(bills, "planned") == 20_000
+
+
+def test_paychecks_interest_and_bonus(session):
+    chk = Account(name="Checking", kind=AccountKind.CHECKING, source=DataSource.MANUAL, external_id="c", balance_cents=0)
+    sav = Account(name="Savings", kind=AccountKind.SAVINGS, source=DataSource.MANUAL, external_id="s", balance_cents=0)
+    session.add_all([chk, sav])
+    session.flush()
+    pay = [(date(2026, 9, 11), 200_000), (date(2026, 9, 25), 200_000), (date(2026, 10, 9), 200_000),
+           (date(2026, 10, 23), 210_000), (date(2026, 11, 6), 210_000)]  # a raise in October
+    for i, (d, c) in enumerate(pay):
+        session.add(Transaction(account_id=chk.id, external_id=f"p{i}", posted_on=d, amount_cents=c,
+                                description="EMPLOYER PAYROLL", provider_category="INCOME",
+                                provider_category_detailed="INCOME_SALARY"))
+    for i, (d, c) in enumerate([(date(2026, 9, 5), 4_000), (date(2026, 10, 5), 4_500), (date(2026, 11, 5), 5_000)]):
+        session.add(Transaction(account_id=sav.id, external_id=f"i{i}", posted_on=d, amount_cents=c,
+                                description="Interest Payment", provider_category="INCOME",
+                                provider_category_detailed="INCOME_INTEREST_EARNED"))
+    # A one-off payment from the employer is not a pattern
+    session.add(Transaction(account_id=chk.id, external_id="v", posted_on=date(2026, 9, 15), amount_cents=99_000,
+                            description="EMPLOYER VENDOR PAY", provider_category="INCOME",
+                            provider_category_detailed="INCOME_CONTRACTOR"))
+    session.add(ManualRecurring(name="Bonus", amount_cents=0, category="Income", cadence="semiannual",
+                                due_note="6,12"))
+    session.commit()
+    bills = {b.name: b for b in detect_recurring(session, today=TODAY) if b.kind == "income"}
+    payroll = bills["EMPLOYER PAYROLL"]
+    assert payroll.cadence == "biweekly" and payroll.amount_cents == 210_000
+    assert payroll.next_expected == date(2026, 11, 20) and payroll.monthly_cents == 455_000  # 2,100 x 26 / 12
+    assert "was 2,000.00" in payroll.note
+    assert bills["Interest Payment"].cadence == "monthly" and bills["Interest Payment"].monthly_cents == 5_000
+    assert "EMPLOYER VENDOR PAY" not in bills
+    bonus = bills["Bonus"]
+    assert bonus.next_expected == date(2026, 12, 1) and "every Jun & Dec" in bonus.note
+    assert "amount not set yet" in bonus.note
+    assert monthly_total_cents(list(bills.values()), "income") == 460_000
+    assert monthly_total_cents(list(bills.values()), None) == 0  # income isn't an outflow
+
+
+def test_paid_this_month(session):
+    a = _acct(session)
+    _txns(session, a, "PaidCo", [(date(2026, 10, 2), 500), (date(2026, 11, 2), 500)])
+    _txns(session, a, "LaterCo", [(date(2026, 9, 20), 700), (date(2026, 10, 20), 700)])
+    session.commit()
+    bills = _names(session)
+    assert bills["PaidCo"].paid_this_month is True and bills["LaterCo"].paid_this_month is False

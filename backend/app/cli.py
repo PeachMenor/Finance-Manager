@@ -185,7 +185,7 @@ def _rent_split(e: dict, rent_base_cents: int | None) -> str | None:
     if e["category"] != "Rent" or not rent_base_cents or cost <= rent_base_cents:
         return None
     rent_part = round(share * rent_base_cents / cost)
-    return json.dumps({"Rent": rent_part, "Bills & utilities": share - rent_part})
+    return json.dumps({"Rent": rent_part, "Bills & subscriptions": share - rent_part})
 
 
 def cmd_splitwise_import_expenses(path: str) -> int:
@@ -207,7 +207,7 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     from app.db.base import SessionLocal, init_db
     from app.db.models import SplitExpense
     from app.services.money import format_cents, to_cents
-    from app.services.spending import CATEGORIES, match_split_expenses
+    from app.services.spending import CATEGORIES, canonical, match_split_expenses
 
     data = json.loads(Path(path).read_text())
     rent_base = to_cents(str(data["rent_base"])) if data.get("rent_base") else None
@@ -215,6 +215,7 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     with SessionLocal() as session:
         session.execute(delete(SplitExpense))
         for e in data["expenses"]:
+            e["category"] = canonical(e["category"])
             if e["category"] not in CATEGORIES:
                 print(f"Unknown category {e['category']!r} (use one of {CATEGORIES})")
                 session.rollback()
@@ -269,18 +270,24 @@ def cmd_recurring() -> int:
         from app.config import data_dir
 
         bills = detect_recurring(session, labels_path=data_dir() / "recurring_labels.json")
-        titles = {"bill": "BILLS & SUBSCRIPTIONS", "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING",
-                  "planned": "COMING UP (set aside per month)"}
+        titles = {"income": "INCOME (monthly equivalent)", "bill": "BILLS & SUBSCRIPTIONS",
+                  "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING", "planned": "COMING UP (set aside per month)"}
         for kind, title in titles.items():
             group = [b for b in bills if b.kind == kind]
             if not group:
                 continue
             print(f"\n{title}  ({format_cents(monthly_total_cents(bills, kind))}/mo)")
             for b in group:
-                when = f"next ~{b.next_expected}" if b.next_expected else "—"
+                when = (f"paid {b.last_charged}" if b.paid_this_month
+                        else f"next ~{b.next_expected}" if b.next_expected else "—")
                 extra = f"  ({b.note})" if b.note else ""
-                per = f"set aside {format_cents(b.set_aside_cents)}/mo of {format_cents(b.amount_cents)}" \
-                    if b.kind == "planned" else f"{format_cents(b.amount_cents):>10}/mo"
+                if b.kind == "planned":
+                    per = f"set aside {format_cents(b.set_aside_cents)}/mo of {format_cents(b.amount_cents)}"
+                elif b.kind == "income":
+                    per = f"{format_cents(b.amount_cents):>10} {b.cadence}" + (
+                        f" (~{format_cents(b.monthly_cents)}/mo)" if b.monthly_cents else "")
+                else:
+                    per = f"{format_cents(b.amount_cents):>10}/mo"
                 print(f"  {b.name:<26} {per}  {b.category:<18} "
                       f"{(b.account or ''):<30} {when}{extra}")
         print(f"\n  Leaves your accounts each month: {format_cents(monthly_total_cents(bills, None))}")
@@ -294,9 +301,13 @@ def cmd_recurring_add(a) -> int:
     from app.db.base import SessionLocal, init_db
     from app.db.models import ManualRecurring
     from app.services.money import to_cents
-    from app.services.spending import CATEGORIES
+    from app.services.spending import CATEGORIES, canonical
 
-    if a.category not in CATEGORIES:
+    if a.income:
+        a.category = "Income"
+    else:
+        a.category = canonical(a.category)
+    if a.category != "Income" and a.category not in CATEGORIES:
         print(f"Category must be one of {CATEGORIES}")
         return 1
     init_db()
@@ -311,7 +322,7 @@ def cmd_recurring_add(a) -> int:
         row.day_of_month, row.paid_via, row.note = a.day, a.paid_via, a.note
         row.cadence = None if a.cadence == "monthly" else a.cadence
         row.next_due = _date.fromisoformat(a.next_due) if a.next_due else None
-        row.due_note = a.due_note
+        row.due_note = a.months if a.income and a.months else a.due_note
         session.commit()
         print(f"Saved monthly bill '{a.name}'.")
     return 0
@@ -351,8 +362,9 @@ def cmd_categorize(txn_id: int, category: str, note: str | None) -> int:
     """Set your own category (and optional note) on one transaction. Sync never overwrites it."""
     from app.db.base import SessionLocal, init_db
     from app.db.models import Transaction
-    from app.services.spending import CATEGORIES
+    from app.services.spending import CATEGORIES, canonical
 
+    category = canonical(category)
     allowed = CATEGORIES + ["Income", "Transfer", "auto"]
     if category not in allowed:
         print(f"Category must be one of {allowed} ('auto' clears your override)")
@@ -378,11 +390,12 @@ def cmd_split_txn(txn_id: int, parts: list[str], note: str | None) -> int:
     from app.db.base import SessionLocal, init_db
     from app.db.models import Transaction
     from app.services.money import format_cents, to_cents
-    from app.services.spending import CATEGORIES
+    from app.services.spending import CATEGORIES, canonical
 
     split = {}
     for p in parts:
         cat, _, amount = p.partition("=")
+        cat = canonical(cat)
         if cat not in CATEGORIES or not amount:
             print(f"Use CATEGORY=AMOUNT with a category from {CATEGORIES}")
             return 1
@@ -618,11 +631,13 @@ def main(argv: list[str] | None = None) -> int:
     ra = sub.add_parser("recurring-add", help="add a monthly bill by hand")
     ra.add_argument("--name", required=True)
     ra.add_argument("--amount", required=True, help="per month, your share")
-    ra.add_argument("--category", required=True)
+    ra.add_argument("--category", default="Other")
     ra.add_argument("--day", type=int, help="usual day of month")
     ra.add_argument("--paid-via", help='e.g. "Splitwise"')
     ra.add_argument("--note")
-    ra.add_argument("--cadence", choices=["monthly", "quarterly", "semester", "yearly"], default="monthly")
+    ra.add_argument("--cadence", choices=["monthly", "quarterly", "semester", "semiannual", "yearly"], default="monthly")
+    ra.add_argument("--income", action="store_true", help="expected income (e.g. a bonus), not a bill")
+    ra.add_argument("--months", help='for --income: months it arrives, e.g. "6,12"')
     ra.add_argument("--next-due", help="earliest expected date, YYYY-MM-DD (non-monthly bills)")
     ra.add_argument("--due-note", help='e.g. "Dec or Jan"')
     sx = sub.add_parser("splitwise-import-expenses", help="load shared expenses (your share) from JSON")

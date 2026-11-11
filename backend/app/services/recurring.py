@@ -17,6 +17,12 @@ Two sources:
 
 3. Loan payments: each hand-entered loan's regular monthly payment and due day.
 
+6. Recurring income (kind "income"): paychecks (biweekly or monthly) and monthly
+   interest, detected from deposits; amounts may change (raises), and the monthly
+   equivalent of a biweekly paycheck is amount x 26 / 12. Expected one-off
+   income added by hand (e.g. a bonus every June and December) shows with its
+   next expected month.
+
 5. Upcoming periodic expenses (kind "planned"): hand-added bills that come every
    few months (tuition per semester, yearly renewals). Shown with their next due
    date and a monthly set-aside = amount / months in the cycle.
@@ -43,19 +49,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import LoanTerms, ManualRecurring, Transaction
-from app.services.spending import classify, match_split_expenses
+from app.services.spending import canonical, classify, match_split_expenses
 
 MIN_GAP_DAYS, MAX_GAP_DAYS = 25, 35
 MAX_PRICE_CHANGE = 0.25  # chaining tolerance
 STEADY = 0.01            # a "same price" step: within 1%
-HABIT_CATEGORIES = {"Food", "Shopping", "Transport"}
+HABIT_CATEGORIES = {"Food", "Shopping", "Transport & travel"}
 SAVING_DETAILED = {"TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS", "TRANSFER_OUT_SAVINGS"}
 ACTIVE_WITHIN_DAYS = 40  # a monthly bill not seen for longer is shown as possibly cancelled
 
 
 @dataclass
 class RecurringBill:
-    kind: str  # "bill" | "loan" | "saving" | "planned"
+    kind: str  # "bill" | "loan" | "saving" | "planned" | "income"
     name: str
     merchant: str
     category: str
@@ -68,6 +74,9 @@ class RecurringBill:
     charges: list[tuple[date, int]] = field(default_factory=list)
     note: str = ""
     set_aside_cents: int = 0  # planned only: per month
+    cadence: str = "monthly"  # "biweekly" | "monthly" | "semiannual" ...
+    monthly_cents: int | None = None  # monthly equivalent (income); None = not monthly
+    paid_this_month: bool = False  # bills: already charged this calendar month (so already in spending)
 
 
 def _add_month(d: date) -> date:
@@ -160,10 +169,11 @@ def detect_recurring(session: Session, today: date | None = None,
             rule = _label_rule(merchant, -last.amount_cents, labels) or {}
             is_saving = last.provider_category_detailed in SAVING_DETAILED and not last.category
             bills.append(RecurringBill(
+                paid_this_month=(last.posted_on.year, last.posted_on.month) == (today.year, today.month),
                 kind="saving" if is_saving else "bill",
                 name=_label(merchant, -last.amount_cents, labels),
                 merchant=merchant,
-                category=rule.get("category") or ("Saving & investing" if is_saving else (c.category or "Other")),
+                category=canonical(rule.get("category")) or ("Saving & investing" if is_saving else (c.category or "Other")),
                 amount_cents=amount,
                 last_charged=last.posted_on,
                 next_expected=_add_month(last.posted_on) if active else None,
@@ -174,13 +184,25 @@ def detect_recurring(session: Session, today: date | None = None,
                 note="; ".join(notes) or ("" if active else "not seen recently: cancelled?"),
             ))
 
-    cycle_months = {"quarterly": 3, "semester": 6, "yearly": 12}
+    cycle_months = {"quarterly": 3, "semester": 6, "semiannual": 6, "yearly": 12}
     for mr in session.scalars(select(ManualRecurring)):
+        if mr.category == "Income":  # expected income added by hand, e.g. a bonus
+            months = sorted(int(x) for x in (mr.due_note or "").split(",") if x.strip().isdigit())
+            nxt = mr.next_due or _next_in_months(today, months)
+            bills.append(RecurringBill(
+                kind="income", name=mr.name, merchant=mr.name, category="Income",
+                amount_cents=mr.amount_cents, last_charged=None, next_expected=nxt,
+                account=mr.paid_via, source="manual", cadence=mr.cadence or "once",
+                note="; ".join(x for x in (
+                    _month_names(months) and f"every {_month_names(months)}",
+                    "amount not set yet" if not mr.amount_cents else "", mr.note) if x),
+            ))
+            continue
         if mr.cadence in cycle_months:
             months = cycle_months[mr.cadence]
             due_text = mr.due_note or (mr.next_due.isoformat() if mr.next_due else "")
             bills.append(RecurringBill(
-                kind="planned", name=mr.name, merchant=mr.name, category=mr.category,
+                kind="planned", name=mr.name, merchant=mr.name, category=canonical(mr.category),
                 amount_cents=mr.amount_cents, last_charged=None, next_expected=mr.next_due,
                 account=mr.paid_via, source="manual",
                 note="; ".join(x for x in (f"every {mr.cadence}", f"due {due_text}" if due_text else "", mr.note) if x),
@@ -193,7 +215,7 @@ def detect_recurring(session: Session, today: date | None = None,
             if nxt < today:
                 nxt = _add_month(nxt)
         bills.append(RecurringBill(
-            kind="bill", name=mr.name, merchant=mr.name, category=mr.category, amount_cents=mr.amount_cents,
+            kind="bill", name=mr.name, merchant=mr.name, category=canonical(mr.category), amount_cents=mr.amount_cents,
             last_charged=None, next_expected=nxt, account=mr.paid_via, source="manual", note=mr.note or "",
         ))
 
@@ -217,9 +239,63 @@ def detect_recurring(session: Session, today: date | None = None,
             source="loan", active=lt.account.balance_cents > 0, note=note,
         ))
 
-    order = {"bill": 0, "loan": 1, "saving": 2, "planned": 3}
+    bills.extend(_detect_income(session, today, labels))
+
+    order = {"income": -1, "bill": 0, "loan": 1, "saving": 2, "planned": 3}
     bills.sort(key=lambda b: (order[b.kind], not b.active, -b.amount_cents))
     return bills
+
+
+INCOME_DETAILED = {"INCOME_SALARY", "INCOME_WAGES", "INCOME_INTEREST_EARNED"}
+_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _month_names(months: list[int]) -> str:
+    return " & ".join(_MONTH_ABBR[m - 1] for m in months)
+
+
+def _next_in_months(today: date, months: list[int]) -> date | None:
+    """First day of the next listed month on or after this month."""
+    for add in range(13):
+        m = (today.month - 1 + add) % 12 + 1
+        y = today.year + (today.month - 1 + add) // 12
+        if m in months:
+            return date(y, m, 1)
+    return None
+
+
+def _detect_income(session: Session, today: date, labels: list[dict] | None = None) -> list[RecurringBill]:
+    """Paychecks and interest: deposits from the same payer on a regular rhythm."""
+    by_payer: dict[str, list[Transaction]] = {}
+    for t in session.scalars(select(Transaction).where(Transaction.amount_cents > 0).order_by(Transaction.posted_on)):
+        if t.provider_category_detailed in INCOME_DETAILED and not t.category:
+            by_payer.setdefault(t.description.strip(), []).append(t)
+    out = []
+    for payer, txns in by_payer.items():
+        if len(txns) < 2:
+            continue
+        gaps = sorted((b.posted_on - a.posted_on).days for a, b in zip(txns, txns[1:]))
+        median = gaps[len(gaps) // 2]
+        if 12 <= median <= 16:
+            cadence, step, per_month = "biweekly", timedelta(days=14), 26 / 12
+        elif 25 <= median <= 35:
+            cadence, step, per_month = "monthly", None, 1
+        else:
+            continue
+        last = txns[-1]
+        nxt = last.posted_on + step if step else _add_month(last.posted_on)
+        active = (today - last.posted_on).days <= (20 if cadence == "biweekly" else ACTIVE_WITHIN_DAYS)
+        first_amt = txns[0].amount_cents
+        note = f"was {first_amt / 100:,.2f}" if first_amt != last.amount_cents else ""
+        out.append(RecurringBill(
+            kind="income", name=_label(payer, last.amount_cents, labels or []), merchant=payer,
+            category="Income", amount_cents=last.amount_cents,
+            last_charged=last.posted_on, next_expected=nxt if active else None,
+            account=last.account.display_name if last.account else None, source="detected",
+            active=active, cadence=cadence, monthly_cents=round(last.amount_cents * per_month),
+            charges=[(x.posted_on, x.amount_cents) for x in txns], note=note,
+        ))
+    return out
 
 
 def monthly_total_cents(bills: list[RecurringBill], kind: str | None = "bill") -> int:
@@ -227,5 +303,7 @@ def monthly_total_cents(bills: list[RecurringBill], kind: str | None = "bill") -
     monthly outflow (bills, loans, saving). Planned items count their monthly set-aside."""
     if kind == "planned":
         return sum(b.set_aside_cents for b in bills if b.kind == "planned")
+    if kind == "income":
+        return sum(b.monthly_cents or 0 for b in bills if b.kind == "income" and b.active)
     return sum(b.amount_cents for b in bills
-               if b.active and b.kind != "planned" and (kind is None or b.kind == kind))
+               if b.active and b.kind not in ("planned", "income") and (kind is None or b.kind == kind))

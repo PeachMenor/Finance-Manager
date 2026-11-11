@@ -14,12 +14,15 @@ from app.services.spending import CATEGORIES, classify, monthly_summary
     [
         ("FOOD_AND_DRINK", "FOOD_AND_DRINK_GROCERIES", -5_000, "spending", "Food"),
         ("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT", -200_000, "spending", "Rent"),
-        ("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_INTERNET_AND_CABLE", -6_000, "spending", "Bills & utilities"),
+        ("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_INTERNET_AND_CABLE", -6_000, "spending", "Bills & subscriptions"),
         ("INCOME", "INCOME_WAGES", 300_000, "income", None),
         ("INCOME", "INCOME_RENTAL", 200_000, "spending", "Rent"),
         ("LOAN_PAYMENTS", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT", -50_000, "transfer", None),
         ("TRANSFER_OUT", None, -10_000, "transfer", None),
-        ("MEDICAL", None, -9_000, "spending", "Other"),
+        ("MEDICAL", None, -9_000, "spending", "Health & care"),
+        ("GENERAL_SERVICES", "GENERAL_SERVICES_AUTOMOTIVE", -2_000, "spending", "Transport & travel"),
+        ("GENERAL_SERVICES", "GENERAL_SERVICES_INSURANCE", -9_000, "spending", "Bills & subscriptions"),
+        ("GOVERNMENT_AND_NON_PROFIT", None, -500, "spending", "Other"),
         (None, None, -1_000, "spending", "Other"),
         (None, None, 1_000, "transfer", None),
     ],
@@ -30,7 +33,7 @@ def test_classify(primary, detailed, amount, kind, category):
 
 
 def test_user_category_wins():
-    assert classify("FOOD_AND_DRINK", None, -500, "Travel").category == "Travel"
+    assert classify("FOOD_AND_DRINK", None, -500, "Travel").category == "Transport & travel"
     assert classify("FOOD_AND_DRINK", None, -500, "Transfer").kind == "transfer"
 
 
@@ -101,12 +104,12 @@ def test_only_your_share_counts(session):
 
     m = {x["month"]: x for x in monthly_summary(session, months=3, today=date(2026, 11, 20))}
     # October: internet charge (Oct 13, closest match) counts as your half: 30
-    assert m["2026-10"]["by_category"] == {"Bills & utilities": 3_000}
+    assert m["2026-10"]["by_category"] == {"Bills & subscriptions": 3_000}
     # September's identical charge is untouched (not shared as far as we know)
-    assert m["2026-09"]["by_category"] == {"Bills & utilities": 6_000}
+    assert m["2026-09"]["by_category"] == {"Bills & subscriptions": 6_000}
     # November: rent half 1,000 + electricity share 40 + dinner 90 + cab 25
-    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Food": 9_000, "Transport": 2_500,
-                                          "Bills & utilities": 4_000}
+    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Food": 9_000, "Transport & travel": 2_500,
+                                          "Bills & subscriptions": 4_000}
     assert m["2026-11"]["spending_cents"] == 115_500
     assert m["2026-11"]["income_cents"] == 500_000  # the Zelle repayment isn't income
     assert m["2026-11"]["unmatched_shared"] == 0
@@ -149,7 +152,7 @@ def test_rent_base_splits_utilities_out(session, tmp_path):
     assert cli.main(["splitwise-import-expenses", str(f)]) == 0
     m = monthly_summary(session, months=1, today=date(2026, 11, 20))[0]
     # your 1,000 share: 1,800/2,000 of it is rent (900), the rest utilities (100)
-    assert m["by_category"] == {"Rent": 90_000, "Bills & utilities": 10_000}
+    assert m["by_category"] == {"Rent": 90_000, "Bills & subscriptions": 10_000}
 
 
 # ---- household rent rule (made-up: base rent 2,000, your share 1,000) ----
@@ -184,7 +187,7 @@ def test_fixed_rent_share_every_month(session):
     assert m["2026-09"]["by_category"] == {"Rent": 100_000}
     assert m["2026-10"]["by_category"] == {"Rent": 100_000, "Food": 5_000}
     # November: your rent share + half of the 200 utilities billed with rent
-    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Bills & utilities": 10_000}
+    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Bills & subscriptions": 10_000}
 
 
 def test_unexplained_extra_is_flagged(session):
@@ -205,7 +208,7 @@ def test_splitwise_rent_entry_explains_utilities(session):
     se.split_parts = '{"Rent": 100000, "Bills & utilities": 10000}'
     session.commit()
     m = monthly_summary(session, months=1, today=date(2026, 11, 20), rent_rule=RULE)[0]
-    assert m["by_category"] == {"Rent": 100_000, "Bills & utilities": 10_000}  # not counted twice
+    assert m["by_category"] == {"Rent": 100_000, "Bills & subscriptions": 10_000}  # not counted twice
 
 
 def test_recategorized_rent_lookalike_moves_out_of_rent(session):
@@ -238,3 +241,24 @@ def test_split_payment_rent_plus_fee(session):
     # Without the household rule, the split counts as written.
     m2 = monthly_summary(session, months=1, today=date(2026, 8, 25))[0]
     assert m2["by_category"] == {"Rent": 200_000, "Education": 150_000}
+
+
+def test_old_category_names_are_migrated(session):
+    import json
+
+    from app.db.base import engine, init_db
+
+    chk = Account(name="Checking", kind=AccountKind.CHECKING, source=DataSource.MANUAL, external_id="c", balance_cents=0)
+    session.add(chk)
+    session.flush()
+    session.add(Transaction(account_id=chk.id, external_id="t", posted_on=date(2026, 9, 1), amount_cents=-100,
+                            description="x", category="Travel",
+                            split_parts=json.dumps({"Bills & utilities": 60, "Transport": 40})))
+    _split(session, date(2026, 9, 1), "cab", 100, 0, 100, "Transport")
+    session.commit()
+    init_db(engine)
+    session.expire_all()
+    t = session.scalar(select(Transaction))
+    assert t.category == "Transport & travel"
+    assert json.loads(t.split_parts) == {"Bills & subscriptions": 60, "Transport & travel": 40}
+    assert session.scalar(select(SplitExpense)).category == "Transport & travel"

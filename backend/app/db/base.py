@@ -34,6 +34,35 @@ def init_db(bind: Engine = engine) -> None:
 
     Base.metadata.create_all(bind)
     _add_missing_columns(bind)
+    _migrate_category_names(bind)
+
+
+def _migrate_category_names(bind: Engine) -> None:
+    """Rename stored categories that were renamed in code (safe to repeat)."""
+    import json
+
+    from app.services.spending import CATEGORY_ALIASES
+
+    def fix_json(raw: str | None) -> str | None:
+        if not raw:
+            return raw
+        parts: dict[str, int] = {}
+        for k, v in json.loads(raw).items():
+            k = CATEGORY_ALIASES.get(k, k)
+            parts[k] = parts.get(k, 0) + v
+        return json.dumps(parts)
+
+    with bind.begin() as conn:
+        for old, new in CATEGORY_ALIASES.items():
+            for table in ("transactions", "split_expenses", "manual_recurring"):
+                conn.execute(text(f'UPDATE "{table}" SET category = :new WHERE category = :old'),
+                             {"old": old, "new": new})
+        for table in ("transactions", "split_expenses"):
+            rows = conn.execute(text(f'SELECT id, split_parts FROM "{table}" WHERE split_parts IS NOT NULL')).all()
+            for row_id, raw in rows:
+                fixed = fix_json(raw)
+                if fixed != raw:
+                    conn.execute(text(f'UPDATE "{table}" SET split_parts = :p WHERE id = :i'), {"p": fixed, "i": row_id})
 
 
 def _add_missing_columns(bind: Engine) -> None:

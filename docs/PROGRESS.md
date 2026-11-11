@@ -58,6 +58,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Household rent rule: fixed rent share every month; utilities billed with rent at your share; unexplained extras flagged
 - [x] 🧑🤖 Flagged rent extra explained and split (`split-txn`)
 - [x] 🤖 Upcoming periodic expenses (semester / quarterly / yearly) with monthly set-aside ("Coming up")
+- [x] 🤖 Categories: "Other" broken out into Health & care, Bills & subscriptions (insurance, software); Transport & travel merged
+- [x] 🤖 Recurring income: paychecks (biweekly), interest; expected bonuses; bills marked paid this month
+- [x] 🤖 Dashboard: selected month drives the headline figures; owed in green / owe in red; tabs between Ledger and Linked accounts
+- [ ] 🧑 Next semester's tuition amount and typical bonus amount
 
 ## Stage 4 — Budgets
 - [ ] Not started
@@ -89,5 +93,6 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Splitwise balances stay in net worth (owed to you − you owe) | User's choice: money owed to you counts as yours |
 | 2026-11-10 | Rent = fixed monthly share, regardless of who paid the landlord | Rent payments and housemate settle-ups move irregularly between people |
 | 2026-11-10 | Private settings (labels, household rule) live in the data folder; tests use an empty temp one | Tests must never read real personal files |
+| 2026-11-10 | 8 coloured categories + Other (Transport & travel merged; Health & care added) | The validated palette has 8 distinguishable colours |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

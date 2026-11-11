@@ -56,23 +56,44 @@ from app.db.models import SplitExpense, Transaction
 
 # Display order is fixed so each category keeps the same colour everywhere.
 CATEGORIES = [
-    "Rent", "Food", "Shopping", "Transport", "Entertainment", "Travel", "Bills & utilities", "Education", "Other",
+    "Rent", "Food", "Shopping", "Transport & travel", "Entertainment", "Bills & subscriptions",
+    "Education", "Health & care", "Other",
 ]
+
+# Older names still accepted everywhere (and migrated on startup).
+CATEGORY_ALIASES = {
+    "Transport": "Transport & travel",
+    "Travel": "Transport & travel",
+    "Bills & utilities": "Bills & subscriptions",
+    "Health": "Health & care",
+}
+
+
+def canonical(category: str | None) -> str | None:
+    """Map an older or alias category name to the current one."""
+    return CATEGORY_ALIASES.get(category, category) if category else category
 
 _PRIMARY_TO_CATEGORY = {
     "FOOD_AND_DRINK": "Food",
     "GENERAL_MERCHANDISE": "Shopping",
     "HOME_IMPROVEMENT": "Shopping",
-    "TRANSPORTATION": "Transport",
+    "TRANSPORTATION": "Transport & travel",
+    "TRAVEL": "Transport & travel",
     "ENTERTAINMENT": "Entertainment",
-    "TRAVEL": "Travel",
-    "RENT_AND_UTILITIES": "Bills & utilities",  # rent itself is picked out below
-    "MEDICAL": "Other",
-    "PERSONAL_CARE": "Other",
+    "RENT_AND_UTILITIES": "Bills & subscriptions",  # rent itself is picked out below
+    "MEDICAL": "Health & care",
+    "PERSONAL_CARE": "Health & care",
     "EDUCATION": "Education",
-    "GENERAL_SERVICES": "Other",
+    "GENERAL_SERVICES": "Bills & subscriptions",  # insurance, software subscriptions... (see detailed)
     "GOVERNMENT_AND_NON_PROFIT": "Other",
     "BANK_FEES": "Other",
+}
+# Finer rules by Plaid's detailed category, checked before the primary ones.
+_DETAILED_TO_CATEGORY = {
+    "GENERAL_SERVICES_AUTOMOTIVE": "Transport & travel",
+    "GENERAL_SERVICES_EDUCATION": "Education",
+    "GENERAL_SERVICES_CHILDCARE": "Other",
+    "GENERAL_SERVICES_POSTAGE_AND_SHIPPING": "Other",
 }
 _TRANSFER_PRIMARIES = {"TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS"}
 
@@ -89,7 +110,7 @@ def classify(primary: str | None, detailed: str | None, amount_cents: int,
     if user_category:
         if user_category in ("Income", "Transfer"):
             return Classified(user_category.lower())
-        return Classified("spending", user_category)
+        return Classified("spending", canonical(user_category))
     if primary in _TRANSFER_PRIMARIES:
         return Classified("transfer")
     if primary == "INCOME":
@@ -98,6 +119,8 @@ def classify(primary: str | None, detailed: str | None, amount_cents: int,
         return Classified("income") if amount_cents > 0 else Classified("transfer")
     if detailed == "RENT_AND_UTILITIES_RENT":
         return Classified("spending", "Rent")
+    if detailed in _DETAILED_TO_CATEGORY:
+        return Classified("spending", _DETAILED_TO_CATEGORY[detailed])
     if primary in _PRIMARY_TO_CATEGORY:
         return Classified("spending", _PRIMARY_TO_CATEGORY[primary])
     # Unknown or missing category: money out is spending, money in is left out.
@@ -199,6 +222,7 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
         first_day[k] = min(first_day.get(k, t.posted_on), t.posted_on)
         if t.parts():  # your own split of one payment across categories
             for cat, cents in t.parts().items():
+                cat = canonical(cat)
                 if rent_rule and cat == "Rent":
                     rent_paid[t.posted_on] += cents
                 else:
@@ -218,6 +242,7 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
 
     def add_parts(k, parts):
         for part_cat, cents in parts.items():
+            part_cat = canonical(part_cat)
             if rent_rule and part_cat == "Rent":
                 continue  # the fixed monthly share covers rent
             spending[k][part_cat] += cents
@@ -250,7 +275,7 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
             if day in rent_explained or excess <= 0:
                 continue
             if excess <= rent_rule.base_cents * UTILITIES_TOLERANCE:
-                spending[k]["Bills & utilities"] += round(excess / rent_rule.people)  # utilities billed with rent
+                spending[k]["Bills & subscriptions"] += round(excess / rent_rule.people)  # utilities billed with rent
             else:
                 spending[k]["Other"] += excess
                 flags[k].append(f"rent payment on {day} was {excess / 100:,.2f} above the base rent (unexplained)")

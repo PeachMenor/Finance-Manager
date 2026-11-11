@@ -3,54 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Link Accounts</title>
+<title>Linked Accounts</title>
 <!-- Plaid requires Link to be loaded from its own CDN. Your bank sign-in happens
      inside Plaid's window; this page never sees your username or password. -->
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <style>
+  /* Same tokens as the Ledger page (light, then dark). */
   :root {
-    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
-    --border: #e3e3e0; --accent: #1f6feb; --accent-text: #ffffff;
+    color-scheme: light;
+    --bg: #f6f4ef; --card: #fcfbf8; --rule: #e2ded5; --rule-strong: #cfcac0;
+    --text: #16150f; --text-secondary: #55524a; --muted: #85817a;
+    --accent: #1f5f8b; --accent-text: #ffffff;
     --ok: #1a7f37; --bad: #c62828; --warn-bg: #fff4d6; --warn-text: #6b4e00;
+    --serif: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #141414; --card: #1e1e1e; --text: #ececec; --muted: #9a9a9f;
-      --border: #333333; --accent: #4c8dff; --accent-text: #0b0b0b;
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #121210; --card: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+      --text: #f0eee8; --text-secondary: #c3c0b6; --muted: #8f8c83;
+      --accent: #6aa8d8; --accent-text: #0e0e0c;
       --ok: #4ac26b; --bad: #ff6b6b; --warn-bg: #3a3000; --warn-text: #ffe08a;
     }
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121210; --card: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+    --text: #f0eee8; --text-secondary: #c3c0b6; --muted: #8f8c83;
+    --accent: #6aa8d8; --accent-text: #0e0e0c;
+    --ok: #4ac26b; --bad: #ff6b6b; --warn-bg: #3a3000; --warn-text: #ffe08a;
+  }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 24px; }
-  .banner {
-    background: var(--warn-bg); color: var(--warn-text); border-radius: 10px;
-    padding: 10px 14px; margin-bottom: 20px; display: none;
-  }
-  .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 20px; margin-bottom: 16px;
-  }
-  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); }
+  main { max-width: 1160px; margin: 0 auto; padding: 28px 16px 72px; }
+  .content { max-width: 680px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;
+           padding-bottom: 18px; border-bottom: 1px solid var(--rule-strong); margin-bottom: 26px; }
+  .eyebrow { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .brand { font-family: var(--serif); font-size: 26px; letter-spacing: -.01em; margin: 0; }
+  nav.tabs { display: flex; gap: 4px; }
+  nav.tabs a { font: 500 13px/1 var(--sans); padding: 9px 14px; border-radius: 999px; color: var(--text-secondary);
+    text-decoration: none; border: 1px solid transparent; }
+  nav.tabs a[aria-current="page"] { color: var(--text); border-color: var(--rule-strong); background: var(--card); }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .banner { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; display: none; }
+  section.block { padding: 0 0 22px; margin-bottom: 22px; border-bottom: 1px solid var(--rule); }
+  section.block h2 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0 0 12px; }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-  button {
-    font: inherit; border-radius: 8px; padding: 9px 14px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--card); color: var(--text);
-  }
+  button { font: 500 13px/1 var(--sans); border-radius: 999px; padding: 9px 14px; cursor: pointer;
+    border: 1px solid var(--rule-strong); background: transparent; color: var(--text); }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
   ul { list-style: none; padding: 0; margin: 0; }
-  li {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 0; border-top: 1px solid var(--border);
-  }
-  li:first-child { border-top: 0; }
+  li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
   .name { font-weight: 600; }
   .meta { color: var(--muted); font-size: 13px; }
   .empty { color: var(--muted); }
@@ -60,7 +68,18 @@
 </head>
 <body>
 <main>
-  <h1>Link accounts</h1>
+  <header>
+    <div>
+      <div class="eyebrow">Personal finance</div>
+      <h1 class="brand">Ledger</h1>
+    </div>
+    <nav class="tabs" aria-label="Pages">
+      <a href="/">Ledger</a>
+      <a href="/link" aria-current="page">Linked accounts</a>
+    </nav>
+  </header>
+
+  <div class="content">
   <p class="sub">Connect your banks, cards and investment accounts. The app only reads data and can never move money.</p>
 
   <div class="banner" id="sandbox-banner">
@@ -68,7 +87,7 @@
     Use username <b>user_good</b> and password <b>pass_good</b>.
   </div>
 
-  <section class="card">
+  <section class="block">
     <h2>Add a login</h2>
     <div class="actions">
       <button class="primary" data-kind="banking">Bank or credit card</button>
@@ -78,7 +97,7 @@
     <div id="log" role="status"></div>
   </section>
 
-  <section class="card">
+  <section class="block">
     <h2>Linked logins</h2>
     <ul id="items"><li class="empty">Nothing linked yet.</li></ul>
     <div class="actions" style="margin-top:12px">
@@ -86,6 +105,7 @@
     </div>
     <p class="hint" id="auto-sync"></p>
   </section>
+  </div>
 </main>
 
 <script>
