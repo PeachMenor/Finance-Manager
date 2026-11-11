@@ -158,15 +158,26 @@ def map_account_kind(plaid_type: str, subtype: str | None) -> AccountKind:
     return AccountKind.OTHER
 
 
-def account_display_name(a: dict) -> str:
-    """Pick the clearest name Plaid offers.
+# Names that say only what kind of account it is, not which one.
+_GENERIC_NAMES = {
+    "account", "brokerage", "checking", "credit", "credit card", "investment",
+    "investments", "loan", "savings",
+}
 
-    Banks often send a generic `name` ("CREDIT CARD") but a specific
-    `official_name` ("Rewards Visa"), so prefer the official one. All-caps names
-    are softened to Title Case ("EVERYDAY CHECKING" -> "Everyday Checking").
+
+def account_display_name(a: dict) -> str:
+    """Pick the more specific of Plaid's two names.
+
+    Institutions differ: some send a generic `name` ("CREDIT CARD") with a
+    specific `official_name` ("Rewards Visa"); others the reverse (`name` "RSU",
+    `official_name` "Investment"). Prefer `official_name` unless it's generic.
+    Capitalization is kept as sent, so acronyms like "ESPP" stay intact.
     """
-    name = a.get("official_name") or a.get("name") or "Account"
-    return name.title() if name.isupper() else name
+    official = (a.get("official_name") or "").strip()
+    name = (a.get("name") or "").strip()
+    if official and official.lower() not in _GENERIC_NAMES:
+        return official
+    return name or official or "Account"
 
 
 class PlaidIntegration(Integration):

@@ -15,8 +15,10 @@ from app.services.sync import sync_accounts
     "raw, expected",
     [
         ({"name": "CREDIT CARD", "official_name": "Rewards Visa"}, "Rewards Visa"),
-        ({"name": "EVERYDAY CHECKING", "official_name": None}, "Everyday Checking"),
+        ({"name": "Stock Awards", "official_name": "Investment"}, "Stock Awards"),  # reverse case
+        ({"name": "EVERYDAY CHECKING", "official_name": None}, "EVERYDAY CHECKING"),  # caps kept
         ({"name": "Plaid Checking"}, "Plaid Checking"),
+        ({"name": "", "official_name": "Investment"}, "Investment"),  # generic beats nothing
         ({}, "Account"),
     ],
 )
