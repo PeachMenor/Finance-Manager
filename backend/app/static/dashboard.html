@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance Dashboard</title>
+<!-- No external scripts: everything on this page is served by your own server. -->
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f4f2; --surface-1: #fcfcfb; --border: #e3e2de;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77756f;
+    --grid: #e7e6e2; --series-1: #2a78d6; --accent-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+      --grid: #2b2b29; --series-1: #3987e5; --accent-text: #0b0b0b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+    --grid: #2b2b29; --series-1: #3987e5; --accent-text: #0b0b0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-primary);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; }
+  .muted { color: var(--text-muted); font-size: 13px; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  button, .button {
+    font: inherit; font-size: 14px; border-radius: 8px; padding: 7px 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); text-decoration: none;
+  }
+  button.primary { background: var(--series-1); border-color: var(--series-1); color: var(--accent-text); }
+  button:disabled { opacity: .5; cursor: default; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .hero { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .hero { grid-template-columns: 1fr; } }
+  .label { color: var(--text-secondary); font-size: 13px; }
+  .big { font-size: 36px; font-weight: 650; letter-spacing: -0.5px; margin: 2px 0 12px; font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .stat .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .card h2 { font-size: 15px; margin: 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .card-head .total { font-weight: 650; font-variant-numeric: tabular-nums; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
+  li:first-child { border-top: 0; }
+  .name { min-width: 0; }
+  .name div:first-child { overflow-wrap: anywhere; }
+  .amount { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .zero { color: var(--text-muted); }
+  .note { color: var(--text-muted); font-size: 13px; margin: 8px 0 0; }
+  /* chart */
+  .chart-wrap { position: relative; }
+  svg { display: block; width: 100%; height: 220px; overflow: visible; }
+  .axis-text { fill: var(--text-muted); font-size: 11px; }
+  .tooltip {
+    position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 9px; font-size: 13px; white-space: nowrap; display: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); font-variant-numeric: tabular-nums;
+  }
+  details { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+  table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  td, th { padding: 2px 14px 2px 0; text-align: left; }
+  #error { color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: none; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Finance Dashboard</h1>
+      <div class="muted" id="as-of">Loading…</div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="sync">Sync now</button>
+      <a class="button" href="/link">Linked accounts</a>
+    </div>
+  </header>
+  <div id="error" role="alert"></div>
+
+  <section class="hero">
+    <div class="card">
+      <div class="label">Net worth</div>
+      <div class="big" id="net-worth">–</div>
+      <div class="stats">
+        <div class="stat"><div class="label">Assets</div><div class="value" id="assets">–</div></div>
+        <div class="stat"><div class="label">Liabilities</div><div class="value" id="liabilities">–</div></div>
+        <div class="stat"><div class="label">Owed to you</div><div class="value" id="owed">–</div></div>
+        <div class="stat"><div class="label">You owe</div><div class="value" id="owe">–</div></div>
+      </div>
+      <p class="note">Net worth = assets − liabilities + owed to you − you owe. Retirement and unvested awards are shown below but not counted.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Net worth over time</h2><span class="muted" id="history-range"></span></div>
+      <div class="chart-wrap" id="chart-wrap">
+        <svg id="chart" role="img" aria-label="Net worth over time"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <p class="note" id="history-note"></p>
+      <details><summary>View as table</summary><table id="history-table"></table></details>
+    </div>
+  </section>
+
+  <section class="grid" id="cards"></section>
+</main>
+
+<script>
+const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const money = (cents) => fmt.format(cents / 100);
+const minus = (cents) => (cents ? "−" : "") + money(cents);  // no "−$0.00"
+const signed = (cents) => (cents > 0 ? "+" : cents < 0 ? "−" : "") + money(Math.abs(cents));
+const el = (tag, props = {}, ...children) => {
+  const n = document.createElement(tag);
+  Object.assign(n, props);
+  n.append(...children);
+  return n;
+};
+// All names are inserted with textContent / append (never innerHTML).
+
+function accountList(rows, { owed = false } = {}) {
+  const ul = el("ul");
+  if (!rows.length) ul.append(el("li", { className: "zero" }, "None"));
+  for (const r of rows) {
+    const name = el("div", { className: "name" },
+      el("div", { textContent: r.name }),
+      el("div", { className: "muted", textContent: r.institution || "" }));
+    const amt = el("div", {
+      className: "amount" + (r.balance_cents === 0 ? " zero" : ""),
+      textContent: money(r.balance_cents),
+    });
+    ul.append(el("li", {}, name, amt));
+  }
+  return ul;
+}
+
+function card(title, totalText, ...body) {
+  return el("section", { className: "card" },
+    el("div", { className: "card-head" }, el("h2", { textContent: title }),
+      el("span", { className: "total", textContent: totalText })),
+    ...body);
+}
+
+function renderCards(d) {
+  const cards = document.getElementById("cards");
+  cards.replaceChildren();
+  const g = Object.fromEntries(d.groups.map((x) => [x.key, x]));
+
+  cards.append(card("Cash & savings", money(g.cash.total_cents), accountList(g.cash.accounts)));
+  cards.append(card("Investments", money(g.investments.total_cents), accountList(g.investments.accounts)));
+  cards.append(card("Credit cards (owed)", money(g.cards.total_cents), accountList(g.cards.accounts)));
+
+  // Loans: balance plus terms for hand-entered loans.
+  const loanList = accountList(g.loans.accounts);
+  for (const l of d.loans) {
+    const terms = [`${l.apr_percent.toFixed(2)}% APR`, `${money(l.regular_payment_cents)}/month`];
+    if (l.payments_left != null) terms.push(`about ${l.payments_left} payments left`);
+    if (l.maturity_date) terms.push(`ends ${new Date(l.maturity_date + "T00:00").toLocaleDateString()}`);
+    loanList.append(el("li", { className: "muted" }, el("div", { textContent: `${l.name}: ${terms.join(" · ")}` })));
+  }
+  cards.append(card("Loans (owed)", money(g.loans.total_cents), loanList));
+
+  // People (Splitwise)
+  const people = el("ul");
+  if (!d.people.length) people.append(el("li", { className: "zero" }, "No balances yet. Import a Splitwise screenshot."));
+  for (const p of d.people) {
+    const text = p.amount_cents > 0 ? `owes you ${money(p.amount_cents)}` : `you owe ${money(-p.amount_cents)}`;
+    people.append(el("li", {}, el("div", { textContent: p.name }), el("div", { className: "amount", textContent: text })));
+  }
+  const net = d.owed_to_you_cents - d.you_owe_cents;
+  cards.append(card("People", signed(net), people));
+
+  cards.append(card("Shown, not counted", money(d.not_counted.total_cents),
+    accountList(d.not_counted.accounts),
+    el("p", { className: "note", textContent: "Retirement accounts and unvested stock awards. Visible here, left out of net worth." })));
+
+  cards.append(card("Spending", "",
+    el("p", { className: "note", textContent: "Monthly and annual expenses arrive in Stage 3, counting only your share of anything split on Splitwise." })));
+}
+
+// ---- Net worth line chart: one series, 2px line, crosshair + tooltip on hover ----
+function renderChart(history) {
+  const svg = document.getElementById("chart");
+  const wrap = document.getElementById("chart-wrap");
+  const tip = document.getElementById("tooltip");
+  const note = document.getElementById("history-note");
+  const table = document.getElementById("history-table");
+  svg.replaceChildren();
+  table.replaceChildren(el("tr", {}, el("th", { textContent: "Date" }), el("th", { textContent: "Net worth" })));
+  for (const h of history) {
+    table.append(el("tr", {}, el("td", { textContent: h.date }), el("td", { textContent: money(h.net_worth_cents) })));
+  }
+  if (!history.length) { note.textContent = "No history yet. It builds up with every sync."; return; }
+  note.textContent = history.length < 7
+    ? "History builds up with every sync; the line gets more useful over the coming weeks."
+    : "";
+  document.getElementById("history-range").textContent =
+    history.length > 1 ? `${history[0].date} → ${history.at(-1).date}` : history[0].date;
+
+  const NS = "http://www.w3.org/2000/svg";
+  const W = wrap.clientWidth, H = 220, L = 8, R = 8, T = 10, B = 22;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const vals = history.map((h) => h.net_worth_cents);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max((hi - lo) * 0.1, Math.abs(hi) * 0.02, 100);
+  lo -= pad; hi += pad;
+  const x = (i) => history.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (history.length - 1);
+  const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const mk = (tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+    return n;
+  };
+
+  // Recessive grid with compact value labels.
+  const compact = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  for (let k = 0; k <= 3; k++) {
+    const v = lo + ((hi - lo) * k) / 3;
+    mk("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 });
+    const t = mk("text", { x: L + 2, y: y(v) - 4, class: "axis-text" });
+    t.textContent = compact.format(v / 100);
+  }
+  const first = mk("text", { x: L, y: H - 6, class: "axis-text" });
+  first.textContent = history[0].date;
+  if (history.length > 1) {
+    const last = mk("text", { x: W - R, y: H - 6, class: "axis-text", "text-anchor": "end" });
+    last.textContent = history.at(-1).date;
+  }
+
+  if (history.length > 1) {
+    const d = history.map((h, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(h.net_worth_cents).toFixed(1)}`).join(" ");
+    mk("path", { d, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+  }
+  // Latest value marker (>= 8px, with a surface ring).
+  const li = history.length - 1;
+  mk("circle", { cx: x(li), cy: y(vals[li]), r: 5, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2 });
+
+  // Hover layer: crosshair + tooltip; hit target is the whole plot.
+  const cross = mk("line", { y1: T, y2: H - B, stroke: "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": "3 3", visibility: "hidden" });
+  const dot = mk("circle", { r: 5, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" });
+  const hit = mk("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" });
+  hit.addEventListener("mousemove", (ev) => {
+    const box = svg.getBoundingClientRect();
+    const px = ((ev.clientX - box.left) / box.width) * W;
+    const i = history.length === 1 ? 0 : Math.max(0, Math.min(history.length - 1, Math.round(((px - L) / (W - L - R)) * (history.length - 1))));
+    const cx = x(i), cy = y(vals[i]);
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("visibility", "visible");
+    tip.replaceChildren(el("div", { className: "muted", textContent: history[i].date }), el("div", { textContent: money(vals[i]) }));
+    tip.style.display = "block";
+    const left = (cx / W) * box.width;
+    tip.style.left = Math.min(Math.max(left - tip.offsetWidth / 2, 0), box.width - tip.offsetWidth) + "px";
+    tip.style.top = Math.max((cy / H) * box.height - tip.offsetHeight - 10, 0) + "px";
+  });
+  hit.addEventListener("mouseleave", () => {
+    tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
+  });
+}
+
+let lastData = null;
+async function load() {
+  const res = await fetch("/dashboard");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const d = await res.json();
+  lastData = d;
+  document.getElementById("net-worth").textContent = money(d.net_worth_cents);
+  document.getElementById("assets").textContent = money(d.assets_cents);
+  document.getElementById("liabilities").textContent = minus(d.liabilities_cents);
+  document.getElementById("owed").textContent = money(d.owed_to_you_cents);
+  document.getElementById("owe").textContent = minus(d.you_owe_cents);
+  document.getElementById("as-of").textContent =
+    d.as_of ? `Balances as of ${new Date(d.as_of).toLocaleString()}` : "Not synced yet";
+  renderCards(d);
+  renderChart(d.history);
+}
+
+function showError(msg) {
+  const e = document.getElementById("error");
+  e.textContent = msg;
+  e.style.display = msg ? "block" : "none";
+}
+
+document.getElementById("sync").onclick = async (ev) => {
+  ev.target.disabled = true;
+  ev.target.textContent = "Syncing…";
+  try {
+    const res = await fetch("/plaid/sync", { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    const failed = body.items.filter((i) => !i.ok);
+    showError(failed.length
+      ? `Some logins need attention: ${failed.map((i) => `${i.institution} (${i.error})`).join(", ")}. Open Linked accounts.`
+      : "");
+    await load();
+  } catch (e) { showError(`Sync failed: ${e.message}`); }
+  ev.target.disabled = false;
+  ev.target.textContent = "Sync now";
+};
+
+window.addEventListener("resize", () => lastData && renderChart(lastData.history));
+load().catch((e) => showError(`Couldn't load the dashboard: ${e.message}`));
+</script>
+</body>
+</html>

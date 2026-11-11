@@ -24,7 +24,7 @@ Legend: 🧑 = needs you · 🤖 = Claude can do it alone
 |---|---|---|
 | Backend | Python + FastAPI | Good for finance and data work; Phase 2 analysis will be easy in Python |
 | Database | SQLite, stored locally and git-ignored | Zero setup and one file; can be encrypted later |
-| Frontend | React (Vite) + a charting library | Fast dashboard with tabs and charts; runs in your browser |
+| Frontend | Plain HTML + JavaScript pages served by the backend, charts drawn in SVG | No build step or extra installs; nothing loaded from outside except Plaid's own linking window |
 | Bank and card data | **SimpleFIN Bridge** (primary) and/or **Plaid** (fallback) | Read-only aggregators for US banks, cards and brokerages. Chosen in Stage 1 based on your institutions |
 | Splitwise | Official Splitwise API (personal API key) | Who owes you and whom you owe |
 | Stock and ETF prices | Free market-data source (for example Yahoo Finance via `yfinance`) | Daily values for holdings |

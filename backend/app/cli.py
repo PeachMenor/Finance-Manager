@@ -257,7 +257,7 @@ def cmd_loan_set(a) -> int:
     from sqlalchemy import select
 
     from app.db.base import SessionLocal, init_db
-    from app.db.models import Account, AccountKind, DataSource, Institution, LoanTerms
+    from app.db.models import Account, AccountKind, BalanceSnapshot, DataSource, Institution, LoanTerms
     from app.services.loans import refresh_manual_loans
     from app.services.money import to_cents
 
@@ -280,6 +280,8 @@ def cmd_loan_set(a) -> int:
         acct.name, acct.institution, acct.kind = a.name, inst, AccountKind.LOAN
         acct.balance_cents = to_cents(a.balance)
         session.flush()
+        # Record it in the balance history so the net worth chart includes the loan.
+        session.add(BalanceSnapshot(account_id=acct.id, balance_cents=acct.balance_cents))
         terms = session.scalar(select(LoanTerms).where(LoanTerms.account_id == acct.id))
         if terms is None:
             terms = LoanTerms(account_id=acct.id)

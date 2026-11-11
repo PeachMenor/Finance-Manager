@@ -26,6 +26,7 @@ from app.db.base import SessionLocal, get_session, init_db
 from app.integrations.plaid import PlaidClient
 from app.services.autosync import auto_sync_hours, auto_sync_loop
 from app.db.models import Account
+from app.services.dashboard import build_dashboard
 from app.services.networth import compute_net_worth
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -52,6 +53,18 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Finance Manager", lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.include_router(plaid_router)
+
+
+@app.get("/", include_in_schema=False)
+def dashboard_page() -> FileResponse:
+    """The one-page dashboard."""
+    return FileResponse(STATIC_DIR / "dashboard.html")
+
+
+@app.get("/dashboard")
+def dashboard(session: Session = Depends(get_session)) -> dict:
+    """All the numbers the dashboard shows, in one response (amounts in cents)."""
+    return build_dashboard(session)
 
 
 @app.get("/link", include_in_schema=False)
