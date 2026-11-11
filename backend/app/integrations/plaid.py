@@ -224,12 +224,15 @@ class PlaidIntegration(Integration):
             for t in page["added"] + page["modified"]:
                 if t.get("pending"):
                     continue  # wait until it posts; avoids double-counting
+                pfc = t.get("personal_finance_category") or {}
                 changed.setdefault(t["account_id"], []).append(
                     FetchedTransaction(
                         external_id=t["transaction_id"],
                         posted_on=date.fromisoformat(t["date"]),
                         amount_cents=-to_cents(t["amount"]),  # Plaid: + is money out
                         description=t.get("merchant_name") or t.get("name") or "",
+                        category=pfc.get("primary"),
+                        category_detailed=pfc.get("detailed"),
                     )
                 )
             for r in page["removed"]:

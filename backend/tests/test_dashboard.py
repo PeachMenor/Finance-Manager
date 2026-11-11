@@ -82,7 +82,7 @@ def test_dashboard_routes(session):
     with TestClient(app, base_url="http://localhost") as c:
         page = c.get("/")
         data = c.get("/dashboard").json()
-    assert page.status_code == 200 and "Finance Dashboard" in page.text
+    assert page.status_code == 200 and "Ledger" in page.text
     assert "<script src=" not in page.text  # no external scripts on the dashboard
     assert data["net_worth_cents"] == EXPECTED_NET_WORTH_CENTS
     assert len(data["history"]) >= 1
@@ -124,3 +124,10 @@ def test_loan_set_records_history(session):
     cli.main(["loan-set", "--name", "Car loan", "--institution", "Example Auto Finance", "--balance", "500",
               "--as-of", date.today().isoformat(), "--apr", "6", "--payment", "50", "--day", "9"])
     assert session.scalar(select(BalanceSnapshot.balance_cents)) == 50_000
+
+
+def test_dashboard_includes_spending_months(session):
+    _demo(session)
+    d = build_dashboard(session)
+    assert d["spending"]["categories"][0] == "Rent"
+    assert len(d["spending"]["months"]) == 6

@@ -19,6 +19,8 @@ class FetchedTransaction:
     posted_on: date
     amount_cents: int  # negative = money out, positive = money in
     description: str
+    category: str | None = None  # provider's primary category, e.g. "FOOD_AND_DRINK"
+    category_detailed: str | None = None  # e.g. "FOOD_AND_DRINK_GROCERIES"
 
 
 @dataclass

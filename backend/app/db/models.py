@@ -140,7 +140,11 @@ class Transaction(Base):
     posted_on: Mapped[date] = mapped_column(Date)
     amount_cents: Mapped[int] = mapped_column(Integer)
     description: Mapped[str] = mapped_column(String(300))
-    category: Mapped[str | None] = mapped_column(String(80))  # filled in Stage 3
+    category: Mapped[str | None] = mapped_column(String(80))  # your own override (Stage 3)
+    # The provider's category, e.g. Plaid primary "FOOD_AND_DRINK", detailed
+    # "FOOD_AND_DRINK_GROCERIES". Refreshed on every sync; never overrides `category`.
+    provider_category: Mapped[str | None] = mapped_column(String(80))
+    provider_category_detailed: Mapped[str | None] = mapped_column(String(120))
 
     account: Mapped[Account] = relationship(back_populates="transactions")
 

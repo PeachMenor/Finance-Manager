@@ -336,6 +336,31 @@ def cmd_loans() -> int:
     return 0
 
 
+def cmd_resync_history() -> int:
+    """Re-download all available transaction history (e.g. to fill in new fields).
+
+    Resets each login's sync position; existing rows are updated, never duplicated,
+    and your own categories are kept.
+    """
+    from sqlalchemy import select
+
+    from app.config import get_settings  # noqa: F401  (loads .env)
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import PlaidItem
+    from app.integrations.plaid import PlaidClient
+    from app.services.autosync import sync_everything
+
+    init_db()
+    client = PlaidClient.from_env()
+    with SessionLocal() as session:
+        for item in session.scalars(select(PlaidItem)):
+            item.cursor = None
+        session.commit()
+        for r in sync_everything(session, client):
+            print(f"  {r.institution}: {'ok' if r.ok else r.error}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -364,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     ls.add_argument("--unpaid-interest", help="interest accrued but not yet paid on the statement date "
                     "(e.g. after a principal-only payment), e.g. 12.34")
     sub.add_parser("loans", help="show hand-entered loans")
+    sub.add_parser("resync-history", help="re-download all transaction history from Plaid")
     for cmd, text in (("exclude", "stop counting an account in net worth"),
                       ("include", "count an account in net worth again")):
         sp = sub.add_parser(cmd, help=text)
@@ -389,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_loan_set(args)
     if args.command == "loans":
         return cmd_loans()
+    if args.command == "resync-history":
+        return cmd_resync_history()
     if args.command in ("exclude", "include"):
         return cmd_set_counted(args.account_id, args.command == "include")
     if args.command in ("hide", "unhide"):

@@ -3,85 +3,140 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Finance Dashboard</title>
-<!-- No external scripts: everything on this page is served by your own server. -->
+<title>Finance Ledger</title>
+<!-- No external scripts or fonts: everything on this page comes from your own server. -->
 <style>
+  /* ---------- Tokens: light ---------- */
   :root {
     color-scheme: light;
-    --bg: #f4f4f2; --surface-1: #fcfcfb; --border: #e3e2de;
-    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77756f;
-    --grid: #e7e6e2; --series-1: #2a78d6; --accent-text: #ffffff;
+    --bg: #f6f4ef;            /* warm paper */
+    --surface-1: #fcfbf8;     /* chart surface */
+    --rule: #e2ded5;          /* hairlines */
+    --rule-strong: #cfcac0;
+    --text-primary: #16150f;
+    --text-secondary: #55524a;
+    --text-muted: #85817a;
+    --accent: #1f5f8b;        /* ink blue: selection, buttons */
+    --accent-text: #ffffff;
+    --bar: #cdc8bd;           /* de-emphasised bars */
+    --grid: #ebe8e1;
+    --other: #a6a299;         /* "Other" slice: neutral */
+    /* Categorical slots (validated reference palette, fixed order) */
+    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
+    --c5: #e87ba4; --c6: #008300; --c7: #6250d6;
+    --serif: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   }
+  /* ---------- Tokens: dark (own steps, not a flip) ---------- */
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
-      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
-      --grid: #2b2b29; --series-1: #3987e5; --accent-text: #0b0b0b;
+      --bg: #121210; --surface-1: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+      --text-primary: #f0eee8; --text-secondary: #c3c0b6; --text-muted: #8f8c83;
+      --accent: #6aa8d8; --accent-text: #0e0e0c; --bar: #3d3c37; --grid: #24231f; --other: #77746c;
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+      --c5: #d55181; --c6: #008300; --c7: #9085e9;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
-    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
-    --grid: #2b2b29; --series-1: #3987e5; --accent-text: #0b0b0b;
+    --bg: #121210; --surface-1: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+    --text-primary: #f0eee8; --text-secondary: #c3c0b6; --text-muted: #8f8c83;
+    --accent: #6aa8d8; --accent-text: #0e0e0c; --bar: #3d3c37; --grid: #24231f; --other: #77746c;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+    --c5: #d55181; --c6: #008300; --c7: #9085e9;
   }
+
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text-primary);
-    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
-  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-  h1 { font-size: 22px; margin: 0; }
-  .muted { color: var(--text-muted); font-size: 13px; }
-  .actions { display: flex; gap: 8px; align-items: center; }
-  button, .button {
-    font: inherit; font-size: 14px; border-radius: 8px; padding: 7px 12px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); text-decoration: none;
-  }
-  button.primary { background: var(--series-1); border-color: var(--series-1); color: var(--accent-text); }
+  body { margin: 0; background: var(--bg); color: var(--text-primary); font: 15px/1.5 var(--sans); }
+  main { max-width: 1160px; margin: 0 auto; padding: 28px 16px 72px; }
+  .num { font-family: var(--serif); font-variant-numeric: lining-nums tabular-nums; }
+  .eyebrow { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+  .muted { color: var(--text-muted); }
+  .small { font-size: 13px; }
+
+  /* Header */
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;
+           padding-bottom: 18px; border-bottom: 1px solid var(--rule-strong); }
+  .brand { font-family: var(--serif); font-size: 26px; letter-spacing: -.01em; margin: 0; }
+  .actions { display: flex; gap: 8px; }
+  button, .button { font: 500 13px/1 var(--sans); border-radius: 999px; padding: 9px 14px; cursor: pointer;
+    border: 1px solid var(--rule-strong); background: transparent; color: var(--text-primary); text-decoration: none; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
   button:disabled { opacity: .5; cursor: default; }
-  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
-  .hero { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 16px; margin-bottom: 16px; }
-  @media (max-width: 760px) { .hero { grid-template-columns: 1fr; } }
-  .label { color: var(--text-secondary); font-size: 13px; }
-  .big { font-size: 36px; font-weight: 650; letter-spacing: -0.5px; margin: 2px 0 12px; font-variant-numeric: tabular-nums; }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-  .stat .value { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
-  .card h2 { font-size: 15px; margin: 0; }
-  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-  .card-head .total { font-weight: 650; font-variant-numeric: tabular-nums; }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border); }
-  li:first-child { border-top: 0; }
-  .name { min-width: 0; }
-  .name div:first-child { overflow-wrap: anywhere; }
-  .amount { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-  .zero { color: var(--text-muted); }
-  .note { color: var(--text-muted); font-size: 13px; margin: 8px 0 0; }
-  /* chart */
-  .chart-wrap { position: relative; }
-  svg { display: block; width: 100%; height: 220px; overflow: visible; }
-  .axis-text { fill: var(--text-muted); font-size: 11px; }
-  .tooltip {
-    position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 9px; font-size: 13px; white-space: nowrap; display: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,.12); font-variant-numeric: tabular-nums;
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* KPI strip: hairline-separated columns, no boxes */
+  .kpis { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; border-bottom: 1px solid var(--rule); }
+  .kpi { padding: 22px 20px 20px; border-left: 1px solid var(--rule); }
+  .kpi:first-child { border-left: 0; padding-left: 0; }
+  .kpi .value { font-size: 30px; line-height: 1.15; margin: 6px 0 4px; }
+  .kpi.hero .value { font-size: 46px; letter-spacing: -.02em; }
+  .kpi .sub { font-size: 13px; color: var(--text-secondary); }
+  @media (max-width: 860px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .kpi { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); }
+    .kpi.hero { grid-column: 1 / -1; border-top: 0; }
   }
-  details { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
-  table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  td, th { padding: 2px 14px 2px 0; text-align: left; }
-  #error { color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: none; margin-bottom: 16px; }
+
+  /* Sections */
+  section.block { padding: 26px 0 8px; border-bottom: 1px solid var(--rule); }
+  .block-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .block-head h2 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0; }
+  .two-col { display: grid; grid-template-columns: 1.55fr 1fr; gap: 40px; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; gap: 24px; } }
+
+  /* Charts */
+  .chart-wrap { position: relative; }
+  svg.chart { display: block; width: 100%; overflow: visible; }
+  .axis-text { fill: var(--text-muted); font: 11px var(--sans); }
+  .bar-value { fill: var(--text-primary); font: 600 12px var(--serif); }
+  .bar-sub { fill: var(--text-muted); font: 11px var(--sans); }
+  .bar-hit { cursor: pointer; }
+  .tooltip { position: absolute; pointer-events: none; display: none; z-index: 2; background: var(--surface-1);
+    border: 1px solid var(--rule-strong); border-radius: 8px; padding: 7px 10px; font-size: 13px; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,.10); }
+  .tooltip .t-head { color: var(--text-muted); font-size: 12px; }
+
+  /* Donut + legend */
+  .donut-row { display: grid; grid-template-columns: 180px 1fr; gap: 22px; align-items: center; }
+  @media (max-width: 420px) { .donut-row { grid-template-columns: 1fr; justify-items: center; } }
+  .legend { width: 100%; }
+  .legend li { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--rule); }
+  .legend li:first-child { border-top: 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; }
+  .legend .pct { color: var(--text-muted); font-size: 12px; min-width: 38px; text-align: right; }
+
+  /* Ledger lists */
+  .ledger { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+  @media (max-width: 960px) { .ledger { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .ledger { grid-template-columns: 1fr; } }
+  .group h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 6px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong); }
+  .group h3 .eyebrow { color: var(--text-secondary); }
+  .group h3 .num { font-size: 17px; font-weight: 600; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+  .rows .name { min-width: 0; overflow-wrap: anywhere; }
+  .rows .inst { font-size: 12px; color: var(--text-muted); }
+  .rows .amt { white-space: nowrap; text-align: right; }
+  .zero { color: var(--text-muted); }
+  .note { font-size: 12.5px; color: var(--text-muted); margin: 10px 0 0; line-height: 1.5; }
+  details { margin-top: 10px; font-size: 13px; color: var(--text-secondary); }
+  summary { cursor: pointer; }
+  table { border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  th, td { text-align: left; padding: 3px 16px 3px 0; border-bottom: 1px solid var(--rule); }
+  td.r, th.r { text-align: right; }
+  #error { display: none; margin: 16px 0 0; padding: 10px 14px; border: 1px solid var(--rule-strong); border-radius: 10px; background: var(--surface-1); }
 </style>
 </head>
 <body>
 <main>
   <header>
     <div>
-      <h1>Finance Dashboard</h1>
-      <div class="muted" id="as-of">Loading…</div>
+      <div class="eyebrow">Personal finance</div>
+      <h1 class="brand">Ledger</h1>
+      <div class="small muted" id="as-of">Loading…</div>
     </div>
     <div class="actions">
       <button class="primary" id="sync">Sync now</button>
@@ -90,226 +145,393 @@
   </header>
   <div id="error" role="alert"></div>
 
-  <section class="hero">
-    <div class="card">
-      <div class="label">Net worth</div>
-      <div class="big" id="net-worth">–</div>
-      <div class="stats">
-        <div class="stat"><div class="label">Assets</div><div class="value" id="assets">–</div></div>
-        <div class="stat"><div class="label">Liabilities</div><div class="value" id="liabilities">–</div></div>
-        <div class="stat"><div class="label">Owed to you</div><div class="value" id="owed">–</div></div>
-        <div class="stat"><div class="label">You owe</div><div class="value" id="owe">–</div></div>
-      </div>
-      <p class="note">Net worth = assets − liabilities + owed to you − you owe. Retirement and unvested awards are shown below but not counted.</p>
+  <!-- KPI strip -->
+  <section class="kpis" aria-label="Key figures">
+    <div class="kpi hero">
+      <div class="eyebrow">Net worth</div>
+      <div class="value num" id="k-networth">–</div>
+      <div class="sub" id="k-networth-sub"></div>
     </div>
-    <div class="card">
-      <div class="card-head"><h2>Net worth over time</h2><span class="muted" id="history-range"></span></div>
-      <div class="chart-wrap" id="chart-wrap">
-        <svg id="chart" role="img" aria-label="Net worth over time"></svg>
-        <div class="tooltip" id="tooltip"></div>
-      </div>
-      <p class="note" id="history-note"></p>
-      <details><summary>View as table</summary><table id="history-table"></table></details>
+    <div class="kpi">
+      <div class="eyebrow" id="k-spent-label">Spent this month</div>
+      <div class="value num" id="k-spent">–</div>
+      <div class="sub" id="k-spent-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="eyebrow">Savings rate</div>
+      <div class="value num" id="k-rate">–</div>
+      <div class="sub" id="k-rate-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="eyebrow">Debts</div>
+      <div class="value num" id="k-debts">–</div>
+      <div class="sub" id="k-debts-sub"></div>
     </div>
   </section>
 
-  <section class="grid" id="cards"></section>
+  <!-- Spending: monthly bars + category donut -->
+  <section class="block">
+    <div class="two-col">
+      <div>
+        <div class="block-head">
+          <h2>Monthly spending</h2>
+          <span class="small muted">Select a month to see where it went</span>
+        </div>
+        <div class="chart-wrap" id="bars-wrap">
+          <svg class="chart" id="bars" role="img" aria-label="Spending by month, with savings rate under each month"></svg>
+          <div class="tooltip" id="bars-tip"></div>
+        </div>
+        <details><summary>View as table</summary><table id="bars-table"></table></details>
+      </div>
+      <div>
+        <div class="block-head">
+          <h2>Where it went</h2>
+          <span class="small muted" id="donut-month"></span>
+        </div>
+        <div class="donut-row">
+          <div class="chart-wrap" id="donut-wrap">
+            <svg class="chart" id="donut" viewBox="0 0 180 180" style="height:180px" role="img" aria-label="Spending by category"></svg>
+            <div class="tooltip" id="donut-tip"></div>
+          </div>
+          <ul class="legend" id="legend"></ul>
+        </div>
+      </div>
+    </div>
+    <p class="note">Spending counts purchases and bills across all accounts, minus refunds. Card payments, loan payments and transfers between your own accounts are left out so nothing counts twice. Shared purchases count in full for now; your Splitwise share is applied in Stage 3. Savings rate = (income − spending) ÷ income.</p>
+  </section>
+
+  <!-- Net worth over time -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Net worth over time</h2>
+      <span class="small muted" id="history-range"></span>
+    </div>
+    <div class="chart-wrap" id="line-wrap">
+      <svg class="chart" id="line" style="height:200px" role="img" aria-label="Net worth over time"></svg>
+      <div class="tooltip" id="line-tip"></div>
+    </div>
+    <p class="note" id="history-note"></p>
+    <details><summary>View as table</summary><table id="line-table"></table></details>
+  </section>
+
+  <!-- Accounts ledger -->
+  <section class="block">
+    <div class="block-head"><h2>Accounts</h2><span class="small muted">Hidden accounts are counted but not listed</span></div>
+    <div class="ledger" id="ledger"></div>
+  </section>
 </main>
 
 <script>
+// ---------- helpers ----------
 const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const money = (cents) => fmt.format(cents / 100);
-const minus = (cents) => (cents ? "−" : "") + money(cents);  // no "−$0.00"
-const signed = (cents) => (cents > 0 ? "+" : cents < 0 ? "−" : "") + money(Math.abs(cents));
-const el = (tag, props = {}, ...children) => {
-  const n = document.createElement(tag);
-  Object.assign(n, props);
-  n.append(...children);
+const fmt0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const compact = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+const money = (c) => fmt.format(c / 100);
+const money0 = (c) => fmt0.format(c / 100);
+const minus = (c) => (c ? "−" : "") + money(c);
+const pct = (r) => r == null ? "—" : `${Math.round(r * 100) < 0 ? "−" : ""}${Math.abs(Math.round(r * 100))}%`;
+const monthName = (k, style = "short") => new Date(`${k}-01T00:00`).toLocaleString("en-US", { month: style, year: style === "long" ? "numeric" : undefined });
+const NS = "http://www.w3.org/2000/svg";
+// Names are always inserted as text (textContent / append), never as HTML.
+const el = (tag, props = {}, ...kids) => { const n = document.createElement(tag); Object.assign(n, props); n.append(...kids); return n; };
+const svgEl = (parent, tag, attrs = {}, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  parent.append(n);
   return n;
 };
-// All names are inserted with textContent / append (never innerHTML).
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-function accountList(rows, { owed = false } = {}) {
-  const ul = el("ul");
-  if (!rows.length) ul.append(el("li", { className: "zero" }, "None"));
-  for (const r of rows) {
-    const name = el("div", { className: "name" },
-      el("div", { textContent: r.name }),
-      el("div", { className: "muted", textContent: r.institution || "" }));
-    const amt = el("div", {
-      className: "amount" + (r.balance_cents === 0 ? " zero" : ""),
-      textContent: money(r.balance_cents),
-    });
-    ul.append(el("li", {}, name, amt));
-  }
-  return ul;
+// Fixed category -> colour mapping (colour follows the category, never its rank).
+let CATEGORY_COLOR = {};
+function setColors(categories) {
+  CATEGORY_COLOR = {};
+  categories.forEach((c, i) => { CATEGORY_COLOR[c] = c === "Other" ? "var(--other)" : `var(--c${i + 1})`; });
 }
 
-function card(title, totalText, ...body) {
-  return el("section", { className: "card" },
-    el("div", { className: "card-head" }, el("h2", { textContent: title }),
-      el("span", { className: "total", textContent: totalText })),
-    ...body);
+function placeTip(tip, wrap, x, y) {
+  tip.style.display = "block";
+  const w = wrap.clientWidth;
+  tip.style.left = Math.min(Math.max(x - tip.offsetWidth / 2, 0), w - tip.offsetWidth) + "px";
+  tip.style.top = Math.max(y - tip.offsetHeight - 10, 0) + "px";
 }
 
-function renderCards(d) {
-  const cards = document.getElementById("cards");
-  cards.replaceChildren();
+let DATA = null;
+let selectedMonth = null;
+
+// ---------- KPIs ----------
+function renderKpis(d) {
+  const months = d.spending.months.filter((m) => m.has_data);
+  const cur = d.spending.months.at(-1);
+  const lastFull = [...months].reverse().find((m) => !m.partial && m.savings_rate != null);
+  document.getElementById("k-networth").textContent = money(d.net_worth_cents);
+  document.getElementById("k-networth-sub").textContent =
+    `${money0(d.assets_cents)} assets · ${money0(d.liabilities_cents)} debts` +
+    (d.not_counted.total_cents ? ` · ${money0(d.not_counted.total_cents)} not counted` : "");
+
+  document.getElementById("k-spent-label").textContent = `Spent · ${monthName(cur.month, "long")}`;
+  document.getElementById("k-spent").textContent = money0(cur.spending_cents);
+  const prev = d.spending.months.at(-2);
+  document.getElementById("k-spent-sub").textContent = prev && prev.has_data
+    ? `${monthName(prev.month)}: ${money0(prev.spending_cents)}${cur.partial ? " · month so far" : ""}`
+    : (cur.partial ? "Month so far" : "");
+
+  // Headline rate: the last complete month (the current month is still in progress).
+  const rateMonth = lastFull || cur;
+  document.getElementById("k-rate").textContent = pct(rateMonth.savings_rate);
+  document.getElementById("k-rate-sub").textContent =
+    `${monthName(rateMonth.month)}${rateMonth.partial ? " (so far)" : ""} · ${money0(Math.max(rateMonth.saved_cents, 0))} saved` +
+    (rateMonth !== cur ? ` · ${monthName(cur.month)} so far ${pct(cur.savings_rate)}` : "");
+
+  document.getElementById("k-debts").textContent = money0(d.liabilities_cents);
   const g = Object.fromEntries(d.groups.map((x) => [x.key, x]));
+  document.getElementById("k-debts-sub").textContent = `Cards ${money0(g.cards.total_cents)} · Loans ${money0(g.loans.total_cents)}`;
 
-  cards.append(card("Cash & savings", money(g.cash.total_cents), accountList(g.cash.accounts)));
-  cards.append(card("Investments", money(g.investments.total_cents), accountList(g.investments.accounts)));
-  cards.append(card("Credit cards (owed)", money(g.cards.total_cents), accountList(g.cards.accounts)));
-
-  // Loans: balance plus terms for hand-entered loans.
-  const loanList = accountList(g.loans.accounts);
-  for (const l of d.loans) {
-    const terms = [`${l.apr_percent.toFixed(2)}% APR`, `${money(l.regular_payment_cents)}/month`];
-    if (l.payments_left != null) terms.push(`about ${l.payments_left} payments left`);
-    if (l.maturity_date) terms.push(`ends ${new Date(l.maturity_date + "T00:00").toLocaleDateString()}`);
-    loanList.append(el("li", { className: "muted" }, el("div", { textContent: `${l.name}: ${terms.join(" · ")}` })));
-  }
-  cards.append(card("Loans (owed)", money(g.loans.total_cents), loanList));
-
-  // People (Splitwise)
-  const people = el("ul");
-  if (!d.people.length) people.append(el("li", { className: "zero" }, "No balances yet. Import a Splitwise screenshot."));
-  for (const p of d.people) {
-    const text = p.amount_cents > 0 ? `owes you ${money(p.amount_cents)}` : `you owe ${money(-p.amount_cents)}`;
-    people.append(el("li", {}, el("div", { textContent: p.name }), el("div", { className: "amount", textContent: text })));
-  }
-  const net = d.owed_to_you_cents - d.you_owe_cents;
-  cards.append(card("People", signed(net), people));
-
-  cards.append(card("Shown, not counted", money(d.not_counted.total_cents),
-    accountList(d.not_counted.accounts),
-    el("p", { className: "note", textContent: "Retirement accounts and unvested stock awards. Visible here, left out of net worth." })));
-
-  cards.append(card("Spending", "",
-    el("p", { className: "note", textContent: "Monthly and annual expenses arrive in Stage 3, counting only your share of anything split on Splitwise." })));
+  document.getElementById("as-of").textContent =
+    d.as_of ? `Balances as of ${new Date(d.as_of).toLocaleString()}` : "Not synced yet";
 }
 
-// ---- Net worth line chart: one series, 2px line, crosshair + tooltip on hover ----
-function renderChart(history) {
-  const svg = document.getElementById("chart");
-  const wrap = document.getElementById("chart-wrap");
-  const tip = document.getElementById("tooltip");
-  const note = document.getElementById("history-note");
-  const table = document.getElementById("history-table");
+// ---------- Monthly bars (single series; selected month in the accent) ----------
+function renderBars(d) {
+  const svg = document.getElementById("bars"), wrap = document.getElementById("bars-wrap"), tip = document.getElementById("bars-tip");
   svg.replaceChildren();
-  table.replaceChildren(el("tr", {}, el("th", { textContent: "Date" }), el("th", { textContent: "Net worth" })));
-  for (const h of history) {
-    table.append(el("tr", {}, el("td", { textContent: h.date }), el("td", { textContent: money(h.net_worth_cents) })));
-  }
-  if (!history.length) { note.textContent = "No history yet. It builds up with every sync."; return; }
-  note.textContent = history.length < 7
-    ? "History builds up with every sync; the line gets more useful over the coming weeks."
-    : "";
-  document.getElementById("history-range").textContent =
-    history.length > 1 ? `${history[0].date} → ${history.at(-1).date}` : history[0].date;
+  // Start at the first month with data (history only goes back as far as the bank provides).
+  const firstIdx = Math.max(0, d.spending.months.findIndex((m) => m.has_data));
+  const months = d.spending.months.slice(firstIdx);
+  const W = wrap.clientWidth, H = 230, T = 22, B = 44, L = 40, R = 0;  // L: gutter for value labels
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.style.height = H + "px";
+  const max = Math.max(...months.map((m) => m.spending_cents), 1) * 1.12;
+  const y = (v) => T + (1 - v / max) * (H - T - B);
+  const slot = (W - L - R) / months.length, bw = Math.min(56, slot * 0.56);
 
-  const NS = "http://www.w3.org/2000/svg";
-  const W = wrap.clientWidth, H = 220, L = 8, R = 8, T = 10, B = 22;
+  for (let k = 1; k <= 3; k++) {  // recessive grid; labels sit in the left gutter, clear of bars
+    const v = (max / 3) * k;
+    svgEl(svg, "line", { x1: L, x2: W, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 });
+    svgEl(svg, "text", { x: 0, y: y(v) + 4, class: "axis-text" }, compact.format(v / 100));
+  }
+  svgEl(svg, "line", { x1: L, x2: W, y1: y(0), y2: y(0), stroke: "var(--rule-strong)", "stroke-width": 1 });
+
+  months.forEach((m, i) => {
+    const cx = L + slot * i + slot / 2, x0 = cx - bw / 2;
+    const sel = m.month === selectedMonth;
+    if (m.has_data && m.spending_cents > 0) {
+      const top = y(m.spending_cents), h = y(0) - top, r = Math.min(4, h);
+      // Rounded top corners only; square at the baseline.
+      svgEl(svg, "path", {
+        d: `M${x0},${y(0)} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + bw - r} Q${x0 + bw},${top} ${x0 + bw},${top + r} V${y(0)} Z`,
+        fill: sel ? "var(--accent)" : "var(--bar)",
+      });
+      if (sel) svgEl(svg, "text", { x: cx, y: top - 7, "text-anchor": "middle", class: "bar-value" }, money0(m.spending_cents));
+    }
+    svgEl(svg, "text", { x: cx, y: H - 24, "text-anchor": "middle", class: "axis-text",
+      "font-weight": sel ? 700 : 400, fill: sel ? "var(--text-primary)" : "var(--text-muted)" },
+      monthName(m.month) + (m.partial && m.has_data ? "*" : ""));
+    svgEl(svg, "text", { x: cx, y: H - 8, "text-anchor": "middle", class: "bar-sub" },
+      m.has_data ? `saved ${pct(m.savings_rate)}` : "no data");
+
+    // Hit target: the whole column, bigger than the bar. Keyboard: Enter/Space selects.
+    const hit = svgEl(svg, "rect", { x: L + slot * i, y: 0, width: slot, height: H, fill: "transparent",
+      class: "bar-hit", tabindex: m.has_data ? 0 : -1, role: "button",
+      "aria-label": `${monthName(m.month, "long")}: spent ${money(m.spending_cents)}, saved ${pct(m.savings_rate)}` });
+    if (!m.has_data) return;
+    const choose = () => { selectedMonth = m.month; renderBars(DATA); renderDonut(DATA); };
+    hit.addEventListener("click", choose);
+    hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } });
+    hit.addEventListener("mousemove", () => {
+      tip.replaceChildren(
+        el("div", { className: "t-head", textContent: monthName(m.month, "long") + (m.partial ? " (incomplete)" : "") }),
+        el("div", { className: "num", textContent: `Spent ${money(m.spending_cents)}` }),
+        el("div", { className: "num", textContent: `Income ${money(m.income_cents)}` }),
+        el("div", { textContent: `Saved ${pct(m.savings_rate)}` }));
+      const box = svg.getBoundingClientRect();
+      placeTip(tip, wrap, (cx / W) * box.width, (y(m.spending_cents) / H) * box.height);
+    });
+    hit.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  });
+
+  const table = document.getElementById("bars-table");
+  table.replaceChildren(el("tr", {}, ...["Month", "Spent", "Income", "Saved", "Rate"].map((h, i) => el("th", { textContent: h, className: i ? "r" : "" }))));
+  for (const m of months) {
+    table.append(el("tr", {},
+      el("td", { textContent: monthName(m.month, "long") + (m.partial && m.has_data ? " (incomplete)" : "") }),
+      el("td", { className: "r num", textContent: m.has_data ? money(m.spending_cents) : "—" }),
+      el("td", { className: "r num", textContent: m.has_data ? money(m.income_cents) : "—" }),
+      el("td", { className: "r num", textContent: m.has_data ? money(m.saved_cents) : "—" }),
+      el("td", { className: "r", textContent: m.has_data ? pct(m.savings_rate) : "—" })));
+  }
+}
+
+// ---------- Category donut (fixed category order; 2px surface gaps between slices) ----------
+function renderDonut(d) {
+  const svg = document.getElementById("donut"), wrap = document.getElementById("donut-wrap"), tip = document.getElementById("donut-tip");
+  svg.replaceChildren();
+  const m = d.spending.months.find((x) => x.month === selectedMonth);
+  document.getElementById("donut-month").textContent = m ? monthName(m.month, "long") + (m.partial ? " · so far" : "") : "";
+  const legend = document.getElementById("legend");
+  legend.replaceChildren();
+  // Only positive totals can be drawn as slices; a net refund shows in the legend only.
+  const cats = d.spending.categories.filter((c) => (m?.by_category[c] || 0) !== 0);
+  const drawable = cats.filter((c) => m.by_category[c] > 0);
+  const total = drawable.reduce((s, c) => s + m.by_category[c], 0);
+  const cx = 90, cy = 90, R = 84, r = 56;
+
+  if (!m || total <= 0) {
+    svgEl(svg, "circle", { cx, cy, r: (R + r) / 2, fill: "none", stroke: "var(--rule)", "stroke-width": R - r });
+    svgEl(svg, "text", { x: cx, y: cy + 4, "text-anchor": "middle", class: "axis-text" }, "No spending");
+    return;
+  }
+  let a0 = -Math.PI / 2;
+  const arc = (a, rad) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+  for (const c of drawable) {
+    const v = m.by_category[c], a1 = a0 + (v / total) * Math.PI * 2;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const full = drawable.length === 1;
+    const path = full
+      ? `M${cx},${cy - R} A${R},${R} 0 1 1 ${cx - 0.01},${cy - R} L${cx - 0.01},${cy - r} A${r},${r} 0 1 0 ${cx},${cy - r} Z`
+      : (() => { const [x1, y1] = arc(a0, R), [x2, y2] = arc(a1, R), [x3, y3] = arc(a1, r), [x4, y4] = arc(a0, r);
+          return `M${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 ${large} 0 ${x4},${y4} Z`; })();
+    const slice = svgEl(svg, "path", { d: path, fill: CATEGORY_COLOR[c], stroke: "var(--bg)", "stroke-width": 2, "stroke-linejoin": "round" });
+    slice.addEventListener("mousemove", (ev) => {
+      tip.replaceChildren(el("div", { className: "t-head", textContent: c }),
+        el("div", { className: "num", textContent: `${money(v)} · ${Math.round((v / total) * 100)}%` }));
+      const box = wrap.getBoundingClientRect();
+      placeTip(tip, wrap, ev.clientX - box.left, ev.clientY - box.top);
+    });
+    slice.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+    a0 = a1;
+  }
+  svgEl(svg, "text", { x: cx, y: cy - 4, "text-anchor": "middle", class: "axis-text" }, "Total");
+  svgEl(svg, "text", { x: cx, y: cy + 16, "text-anchor": "middle", class: "bar-value", "font-size": "15" }, money0(m.spending_cents));
+
+  // Legend: always present, with values (identity never by colour alone).
+  for (const c of cats) {
+    const v = m.by_category[c];
+    legend.append(el("li", {},
+      Object.assign(el("span", { className: "swatch" }), { style: `background:${CATEGORY_COLOR[c]}` }),
+      el("span", { textContent: c }),
+      el("span", { className: "num", textContent: money(v) }),
+      el("span", { className: "pct", textContent: v > 0 ? `${Math.round((v / total) * 100)}%` : "refund" })));
+  }
+}
+
+// ---------- Net worth line (one series, crosshair + tooltip) ----------
+function renderLine(history) {
+  const svg = document.getElementById("line"), wrap = document.getElementById("line-wrap"), tip = document.getElementById("line-tip");
+  svg.replaceChildren();
+  const table = document.getElementById("line-table");
+  table.replaceChildren(el("tr", {}, el("th", { textContent: "Date" }), el("th", { textContent: "Net worth", className: "r" })));
+  history.forEach((h) => table.append(el("tr", {}, el("td", { textContent: h.date }), el("td", { className: "r num", textContent: money(h.net_worth_cents) }))));
+  const note = document.getElementById("history-note");
+  if (!history.length) { note.textContent = "No history yet; it builds up with every sync."; return; }
+  note.textContent = history.length < 7 ? "History builds up with every sync; the line becomes useful over the coming weeks." : "";
+  document.getElementById("history-range").textContent = history.length > 1 ? `${history[0].date} → ${history.at(-1).date}` : history[0].date;
+
+  const W = wrap.clientWidth, H = 200, T = 12, B = 22;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   const vals = history.map((h) => h.net_worth_cents);
   let lo = Math.min(...vals), hi = Math.max(...vals);
-  const pad = Math.max((hi - lo) * 0.1, Math.abs(hi) * 0.02, 100);
-  lo -= pad; hi += pad;
-  const x = (i) => history.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (history.length - 1);
+  const pad = Math.max((hi - lo) * 0.1, Math.abs(hi) * 0.02, 100); lo -= pad; hi += pad;
+  const x = (i) => history.length === 1 ? W / 2 : (i * W) / (history.length - 1);
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
-  const mk = (tag, attrs) => {
-    const n = document.createElementNS(NS, tag);
-    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-    svg.append(n);
-    return n;
-  };
-
-  // Recessive grid with compact value labels.
-  const compact = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
   for (let k = 0; k <= 3; k++) {
     const v = lo + ((hi - lo) * k) / 3;
-    mk("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 });
-    const t = mk("text", { x: L + 2, y: y(v) - 4, class: "axis-text" });
-    t.textContent = compact.format(v / 100);
+    svgEl(svg, "line", { x1: 0, x2: W, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 });
+    svgEl(svg, "text", { x: 0, y: y(v) - 4, class: "axis-text" }, compact.format(v / 100));
   }
-  const first = mk("text", { x: L, y: H - 6, class: "axis-text" });
-  first.textContent = history[0].date;
+  svgEl(svg, "text", { x: 0, y: H - 4, class: "axis-text" }, history[0].date);
   if (history.length > 1) {
-    const last = mk("text", { x: W - R, y: H - 6, class: "axis-text", "text-anchor": "end" });
-    last.textContent = history.at(-1).date;
+    svgEl(svg, "text", { x: W, y: H - 4, class: "axis-text", "text-anchor": "end" }, history.at(-1).date);
+    svgEl(svg, "path", { d: history.map((h, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(vals[i]).toFixed(1)}`).join(" "),
+      fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
   }
-
-  if (history.length > 1) {
-    const d = history.map((h, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(h.net_worth_cents).toFixed(1)}`).join(" ");
-    mk("path", { d, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
-  }
-  // Latest value marker (>= 8px, with a surface ring).
   const li = history.length - 1;
-  mk("circle", { cx: x(li), cy: y(vals[li]), r: 5, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2 });
-
-  // Hover layer: crosshair + tooltip; hit target is the whole plot.
-  const cross = mk("line", { y1: T, y2: H - B, stroke: "var(--text-muted)", "stroke-width": 1, "stroke-dasharray": "3 3", visibility: "hidden" });
-  const dot = mk("circle", { r: 5, fill: "var(--series-1)", stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" });
-  const hit = mk("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" });
+  svgEl(svg, "circle", { cx: x(li), cy: y(vals[li]), r: 5, fill: "var(--accent)", stroke: "var(--bg)", "stroke-width": 2 });
+  const cross = svgEl(svg, "line", { y1: T, y2: H - B, stroke: "var(--text-muted)", "stroke-dasharray": "3 3", visibility: "hidden" });
+  const hit = svgEl(svg, "rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" });
   hit.addEventListener("mousemove", (ev) => {
     const box = svg.getBoundingClientRect();
     const px = ((ev.clientX - box.left) / box.width) * W;
-    const i = history.length === 1 ? 0 : Math.max(0, Math.min(history.length - 1, Math.round(((px - L) / (W - L - R)) * (history.length - 1))));
-    const cx = x(i), cy = y(vals[i]);
-    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
-    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("visibility", "visible");
-    tip.replaceChildren(el("div", { className: "muted", textContent: history[i].date }), el("div", { textContent: money(vals[i]) }));
-    tip.style.display = "block";
-    const left = (cx / W) * box.width;
-    tip.style.left = Math.min(Math.max(left - tip.offsetWidth / 2, 0), box.width - tip.offsetWidth) + "px";
-    tip.style.top = Math.max((cy / H) * box.height - tip.offsetHeight - 10, 0) + "px";
+    const i = history.length === 1 ? 0 : Math.max(0, Math.min(li, Math.round((px / W) * li)));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    tip.replaceChildren(el("div", { className: "t-head", textContent: history[i].date }), el("div", { className: "num", textContent: money(vals[i]) }));
+    placeTip(tip, wrap, (x(i) / W) * box.width, (y(vals[i]) / H) * box.height);
   });
-  hit.addEventListener("mouseleave", () => {
-    tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
-  });
+  hit.addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
 }
 
-let lastData = null;
+// ---------- Accounts ledger ----------
+function rows(list, { extra = [] } = {}) {
+  const ul = el("ul", { className: "rows" });
+  if (!list.length && !extra.length) ul.append(el("li", { className: "zero" }, "None"));
+  for (const r of list) {
+    ul.append(el("li", {},
+      el("div", { className: "name" }, el("div", { textContent: r.name }), el("div", { className: "inst", textContent: r.institution || "" })),
+      el("div", { className: "amt num" + (r.balance_cents === 0 ? " zero" : ""), textContent: money(r.balance_cents) })));
+  }
+  extra.forEach((n) => ul.append(n));
+  return ul;
+}
+function group(title, total, body, note) {
+  const g = el("div", { className: "group" },
+    el("h3", {}, el("span", { className: "eyebrow", textContent: title }), el("span", { className: "num", textContent: total })), body);
+  if (note) g.append(el("p", { className: "note", textContent: note }));
+  return g;
+}
+function renderLedger(d) {
+  const g = Object.fromEntries(d.groups.map((x) => [x.key, x]));
+  const loanNotes = d.loans.map((l) => {
+    const t = [`${l.apr_percent.toFixed(2)}% APR`, `${money0(l.regular_payment_cents)}/mo`];
+    if (l.payments_left != null) t.push(`~${l.payments_left} payments left`);
+    if (l.maturity_date) t.push(`ends ${new Date(l.maturity_date + "T00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}`);
+    return el("li", { className: "small muted" }, el("div", { textContent: `${l.name}: ${t.join(" · ")}` }));
+  });
+  const people = el("ul", { className: "rows" });
+  if (!d.people.length) people.append(el("li", { className: "zero" }, "No balances yet. Send a Splitwise screenshot."));
+  for (const p of d.people) {
+    people.append(el("li", {}, el("div", { textContent: p.name }),
+      el("div", { className: "amt num", textContent: p.amount_cents > 0 ? `owes you ${money(p.amount_cents)}` : `you owe ${money(-p.amount_cents)}` })));
+  }
+  const net = d.owed_to_you_cents - d.you_owe_cents;
+  document.getElementById("ledger").replaceChildren(
+    group("Cash & savings", money(g.cash.total_cents), rows(g.cash.accounts)),
+    group("Investments", money(g.investments.total_cents), rows(g.investments.accounts)),
+    group("Credit cards", minus(g.cards.total_cents), rows(g.cards.accounts)),
+    group("Loans", minus(g.loans.total_cents), rows(g.loans.accounts, { extra: loanNotes })),
+    group("People", (net > 0 ? "+" : net < 0 ? "−" : "") + money(Math.abs(net)), people),
+    group("Shown, not counted", money(d.not_counted.total_cents), rows(d.not_counted.accounts),
+      "Retirement accounts and unvested stock awards: visible here, left out of net worth."),
+  );
+}
+
+// ---------- load / sync ----------
 async function load() {
   const res = await fetch("/dashboard");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const d = await res.json();
-  lastData = d;
-  document.getElementById("net-worth").textContent = money(d.net_worth_cents);
-  document.getElementById("assets").textContent = money(d.assets_cents);
-  document.getElementById("liabilities").textContent = minus(d.liabilities_cents);
-  document.getElementById("owed").textContent = money(d.owed_to_you_cents);
-  document.getElementById("owe").textContent = minus(d.you_owe_cents);
-  document.getElementById("as-of").textContent =
-    d.as_of ? `Balances as of ${new Date(d.as_of).toLocaleString()}` : "Not synced yet";
-  renderCards(d);
-  renderChart(d.history);
+  DATA = await res.json();
+  setColors(DATA.spending.categories);
+  const withData = DATA.spending.months.filter((m) => m.has_data);
+  if (!selectedMonth || !withData.some((m) => m.month === selectedMonth)) {
+    // Default to the last complete month, else the current one.
+    selectedMonth = ([...withData].reverse().find((m) => !m.partial) || withData.at(-1) || DATA.spending.months.at(-1)).month;
+  }
+  renderKpis(DATA); renderBars(DATA); renderDonut(DATA); renderLine(DATA.history); renderLedger(DATA);
 }
-
-function showError(msg) {
-  const e = document.getElementById("error");
-  e.textContent = msg;
-  e.style.display = msg ? "block" : "none";
-}
-
+function showError(msg) { const e = document.getElementById("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
 document.getElementById("sync").onclick = async (ev) => {
-  ev.target.disabled = true;
-  ev.target.textContent = "Syncing…";
+  const b = ev.currentTarget; b.disabled = true; b.textContent = "Syncing…";
   try {
     const res = await fetch("/plaid/sync", { method: "POST" });
     const body = await res.json();
     if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
     const failed = body.items.filter((i) => !i.ok);
-    showError(failed.length
-      ? `Some logins need attention: ${failed.map((i) => `${i.institution} (${i.error})`).join(", ")}. Open Linked accounts.`
-      : "");
+    showError(failed.length ? `Some logins need attention: ${failed.map((i) => `${i.institution} (${i.error})`).join(", ")}. Open Linked accounts.` : "");
     await load();
   } catch (e) { showError(`Sync failed: ${e.message}`); }
-  ev.target.disabled = false;
-  ev.target.textContent = "Sync now";
+  b.disabled = false; b.textContent = "Sync now";
 };
-
-window.addEventListener("resize", () => lastData && renderChart(lastData.history));
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => DATA && (renderBars(DATA), renderLine(DATA.history)), 120); });
 load().catch((e) => showError(`Couldn't load the dashboard: ${e.message}`));
 </script>
 </body>

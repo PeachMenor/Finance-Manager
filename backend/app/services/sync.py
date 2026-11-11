@@ -98,6 +98,8 @@ def sync_accounts(
                         posted_on=ft.posted_on,
                         amount_cents=ft.amount_cents,
                         description=ft.description,
+                        provider_category=ft.category,
+                        provider_category_detailed=ft.category_detailed,
                     )
                 )
                 result.new_transactions += 1
@@ -106,6 +108,8 @@ def sync_accounts(
                 row.posted_on = ft.posted_on
                 row.amount_cents = ft.amount_cents
                 row.description = ft.description
+                row.provider_category = ft.category
+                row.provider_category_detailed = ft.category_detailed
                 result.updated_transactions += 1
 
         # --- transactions the provider removed ---

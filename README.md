@@ -69,7 +69,8 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    ```bash
    uvicorn app.main:app --reload
    ```
-   - **Dashboard:** open http://localhost:8000/ for net worth, accounts by group, credit cards and loans, who owes whom, accounts shown but not counted, and net worth over time.
+   - **Dashboard:** open http://localhost:8000/ for net worth, monthly spending (bar chart) with a category breakdown (donut), savings rate, debts, net worth over time and every account.
+   - **Categories:** spending categories come from your bank data. If you linked accounts before categories were stored, fill them in once with `python -m app.cli resync-history`.
    - **Link accounts:** open http://localhost:8000/link and use the buttons. Plaid's own secure window opens and you sign in to your bank there; this app never sees your bank password.
    - **API:** http://localhost:8000/docs (`/accounts`, `/summary`, `/plaid/...`).
    - **Automatic sync:** while the server runs it syncs every login shortly after starting and then every 6 hours (`FM_AUTO_SYNC_HOURS` in `.env`; `0` turns it off). "Sync now" on the link page syncs immediately. New transactions appear once they post at the bank (usually within a day); pending charges are skipped.

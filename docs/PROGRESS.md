@@ -38,6 +38,8 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 One-page dashboard at `/`: net worth (assets, liabilities, Splitwise), cash & savings, investments, credit cards, loans with terms, people, shown-not-counted, spending placeholder
 - [x] 🤖 Net worth over time (daily, from balance history; today always matches the headline), hover tooltip and table view
 - [x] 🤖 Light/dark, works at phone width; Sync now on the dashboard
+- [x] 🤖 Redesign ("Ledger"): KPI strip (net worth, spent this month, savings rate, debts), monthly spending bars with savings rate per month, category donut for the selected month, accounts ledger
+- [x] 🤖 Transaction categories stored from the bank feed; spending/income/transfer rules (card and loan payments, transfers never count as spending)
 - [ ] 🧑 Review the look and tell me what to change
 
 ## Stage 3 — Debts and expenses
@@ -68,5 +70,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Expenses count only your share; card bill payments, settle-ups and loan principal are transfers | Shared purchases on a card would otherwise inflate spending |
 | 2026-11-10 | 401k and unvested stock awards are shown on the dashboard but not counted in net worth | Net worth should reflect money available outside retirement and unvested awards |
 | 2026-11-10 | Dashboard is plain HTML/JS served by the backend, not React | Simpler setup (no Node build), nothing external to load; enough for one page |
+| 2026-11-10 | Categories: Rent, Food, Shopping, Transport, Entertainment, Travel, Bills & utilities, Other, in a fixed order with fixed colours | Colour follows the category across months; validated colour-blind-safe palette |
+| 2026-11-10 | Headline savings rate uses the last complete month | The current month is still in progress |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

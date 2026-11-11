@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem
 from app.services.loans import estimate_balance, months_to_payoff
 from app.services.networth import compute_net_worth
+from app.services.spending import CATEGORIES, monthly_summary
 
 GROUPS = [
     ("cash", "Cash & savings", {AccountKind.CHECKING, AccountKind.SAVINGS, AccountKind.CASH}),
@@ -137,4 +138,5 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "people": [{"name": n, "amount_cents": c} for n, c in s.people],
         "loans": loans,
         "history": net_worth_history(session),
+        "spending": {"categories": CATEGORIES, "months": monthly_summary(session, months=6, today=today)},
     }
