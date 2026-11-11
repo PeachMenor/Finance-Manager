@@ -157,3 +157,21 @@ def test_dashboard_budgets_absent_without_file(session):
 def test_dashboard_year_without_budget_file(session):
     y = build_dashboard(session)["year"]
     assert y == {"summary": None, "review": []}
+
+
+def test_tracking_start_hides_older_data(session, monkeypatch, tmp_path):
+    import json
+
+    from app.db.models import Transaction
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    (tmp_path / "household.json").write_text(json.dumps({"tracking_start": "2026-11-01"}))
+    _demo(session)  # demo transactions are dated Nov 1
+    acct = session.scalar(select(Account).where(Account.external_id == "demo-checking"))
+    session.add(Transaction(account_id=acct.id, external_id="old", posted_on=date(2026, 10, 5),
+                            amount_cents=-9_999, description="old", provider_category="FOOD_AND_DRINK"))
+    session.commit()
+    d = build_dashboard(session, today=date(2026, 11, 20))
+    assert [m["month"] for m in d["spending"]["months"]] == ["2026-11"]
+    assert all(h["date"] >= "2026-11-01" for h in d["history"])
+    assert d["tracking_start"] == "2026-11-01"

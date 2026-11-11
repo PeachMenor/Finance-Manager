@@ -34,6 +34,19 @@ def data_dir() -> Path:
     return Path(os.getenv("FM_DATA_DIR") or REPO_ROOT / "data")
 
 
+def tracking_start():
+    """Optional "tracking_start" (YYYY-MM-DD) in data/household.json: the dashboard
+    shows nothing before it. Older data is kept (bill detection still learns from it)."""
+    import json
+    from datetime import date
+
+    p = data_dir() / "household.json"
+    if not p.exists():
+        return None
+    raw = json.loads(p.read_text()).get("tracking_start")
+    return date.fromisoformat(raw) if raw else None
+
+
 def default_database_path() -> Path:
     """Real accounts and Plaid's fake sandbox banks never share a database.
 

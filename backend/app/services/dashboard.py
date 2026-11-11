@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem, SplitExpense
 from app.services.loans import estimate_balance, months_to_payoff
-from app.config import data_dir
+from app.config import data_dir, tracking_start
 from app.services.networth import compute_net_worth
 from app.services.recurring import detect_recurring, monthly_total_cents
 from app.services.budgets import BudgetConfig, budget_progress
@@ -109,7 +109,7 @@ def _year(session: Session, today: date) -> dict | None:
     rule = RentRule.load(data_dir() / "household.json")
     bills = detect_recurring(session, today=today, labels_path=data_dir() / "recurring_labels.json")
     regular = {b.merchant for b in bills if b.kind == "income" and b.source == "detected"}
-    review = deposits_to_review(session, today, regular)
+    review = deposits_to_review(session, today, regular, since=tracking_start())
     if cfg is None:
         return {"summary": None, "review": review}
     return {"summary": year_summary(session, cfg.year_start, cfg.year_end, today, rule), "review": review}
@@ -171,6 +171,14 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         })
 
     last_synced = session.scalar(select(func.max(PlaidItem.last_synced_at)))
+    start = tracking_start()
+    months = monthly_summary(session, months=6, today=today,
+                             rent_rule=RentRule.load(data_dir() / "household.json"))
+    history = net_worth_history(session)
+    if start:  # show nothing from before you started tracking
+        start_key = f"{start.year:04d}-{start.month:02d}"
+        months = [m for m in months if m["month"] >= start_key]
+        history = [h for h in history if h["date"] >= start.isoformat()]
     return {
         "as_of": _iso(last_synced),
         "net_worth_cents": s.net_worth_cents,
@@ -182,14 +190,14 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "not_counted": {"total_cents": s.excluded_cents, "accounts": not_counted},
         "people": [{"name": n, "amount_cents": c} for n, c in s.people],
         "loans": loans,
-        "history": net_worth_history(session),
+        "history": history,
+        "tracking_start": start.isoformat() if start else None,
         "recurring": _recurring(session, today),
         "budgets": _budgets(session, today),
         "year": _year(session, today),
         "spending": {
             "categories": CATEGORIES,
-            "months": monthly_summary(session, months=6, today=today,
-                                      rent_rule=RentRule.load(data_dir() / "household.json")),
+            "months": months,
             # Earliest Splitwise expense imported: shares are applied from here on.
             "shared_from": _iso_date(session.scalar(select(func.min(SplitExpense.spent_on)))),
         },

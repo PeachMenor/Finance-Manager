@@ -70,6 +70,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Budget tracking: monthly caps (first month pro-rated), yearly pace, statuses; dashboard section and `budgets` command
 - [x] 🤖 Budget year so far: income, expenses, saved, invested; month-by-month table with biggest swings
 - [x] 🤖 Deposits that need explaining (e.g. employer reimbursements) listed; reimbursements reduce their expense category
+- [x] 🧑 Tracking starts Nov 1, 2026: the dashboard shows nothing earlier
 - [ ] 🤖 Alerts when a budget is near or over (e.g. in the weekly nudge)
 
 ## Stage 5 — Monthly reports
@@ -106,5 +107,6 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Superstores (e.g. warehouse clubs) count as groceries; their fuel counts as fuel | Mostly food staples; changeable per transaction |
 | 2026-11-10 | Budget year counts 12 rent months (those starting inside the year) | A year starting mid-month shouldn't include that month's rent |
 | 2026-11-10 | Employer reimbursements reduce the expense they repay, not counted as income | Keeps both income and spending honest |
+| 2026-11-10 | Dashboard starts at a tracking start date (Nov 1, 2026); older data kept but hidden | Easier to track going forward; bill detection still needs past charges |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

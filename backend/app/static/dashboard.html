@@ -373,8 +373,10 @@ function renderKpis(d) {
   const g = Object.fromEntries(d.groups.map((x) => [x.key, x]));
   document.getElementById("k-debts-sub").textContent = `Cards ${money0(g.cards.total_cents)} · Loans ${money0(g.loans.total_cents)}`;
 
+  const since = d.tracking_start
+    ? ` · tracking since ${new Date(d.tracking_start + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : "";
   document.getElementById("as-of").textContent =
-    d.as_of ? `Balances as of ${new Date(d.as_of).toLocaleString()}` : "Not synced yet";
+    (d.as_of ? `Balances as of ${new Date(d.as_of).toLocaleString()}` : "Not synced yet") + since;
 }
 
 // ---------- Monthly bars (single series; selected month in the accent) ----------
@@ -742,10 +744,8 @@ async function load() {
     // Default to the last complete month, else the current one.
     selectedMonth = ([...withData].reverse().find((m) => !m.partial) || withData.at(-1) || DATA.spending.months.at(-1)).month;
   }
-  const sf = DATA.spending.shared_from;
-  document.getElementById("shared-note").textContent = sf
-    ? `Shared expenses count only your share (from Splitwise, ${new Date(sf + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} onward); earlier shared purchases still count in full until imported.`
-    : "Shared purchases count in full until Splitwise expenses are imported.";
+  document.getElementById("shared-note").textContent =
+    "Shared expenses count only your share (Splitwise); rent is your fixed share.";
   renderKpis(DATA); renderYear(DATA); renderBars(DATA); renderDonut(DATA); renderBudgets(DATA); renderBills(DATA); renderLine(DATA.history); renderLedger(DATA);
 }
 function showError(msg) { const e = document.getElementById("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }

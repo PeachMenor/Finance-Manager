@@ -114,14 +114,15 @@ def _next_month(d: date) -> date:
 
 
 def deposits_to_review(session: Session, today: date | None = None,
-                       regular_payers: set[str] | None = None) -> list[dict]:
+                       regular_payers: set[str] | None = None, since: date | None = None) -> list[dict]:
     """Money in that isn't a regular paycheck/interest or a transfer, and you haven't explained yet."""
     today = today or date.today()
+    earliest = max(today - timedelta(days=REVIEW_LOOKBACK_DAYS), since or date.min)
     regular = {p.lower() for p in (regular_payers or set())}
     out = []
     for t in session.scalars(select(Transaction).where(
             Transaction.amount_cents >= REVIEW_MIN_CENTS,
-            Transaction.posted_on >= today - timedelta(days=REVIEW_LOOKBACK_DAYS),
+            Transaction.posted_on >= earliest,
             Transaction.category.is_(None), Transaction.split_parts.is_(None),
             Transaction.provider_category == "INCOME").order_by(Transaction.posted_on.desc())):
         if t.provider_category_detailed in REVIEW_DETAILED_SKIP or t.description.strip().lower() in regular:
