@@ -81,6 +81,7 @@ def test_every_request_carries_credentials():
         ("investment", "roth", AccountKind.RETIREMENT),
         ("investment", "brokerage", AccountKind.BROKERAGE),
         ("investment", "stock plan", AccountKind.BROKERAGE),
+        ("investment", "crypto exchange", AccountKind.CRYPTO),
         ("depository", "cd", AccountKind.SAVINGS),
         ("other", None, AccountKind.OTHER),
     ],

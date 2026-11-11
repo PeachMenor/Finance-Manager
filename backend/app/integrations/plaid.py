@@ -148,6 +148,8 @@ def map_account_kind(plaid_type: str, subtype: str | None) -> AccountKind:
     if plaid_type == "loan":
         return AccountKind.LOAN
     if plaid_type == "investment":
+        if "crypto" in subtype:  # e.g. "crypto exchange"
+            return AccountKind.CRYPTO
         if subtype == "hsa":
             return AccountKind.HSA
         if subtype in _RETIREMENT_SUBTYPES:
