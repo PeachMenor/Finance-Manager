@@ -47,13 +47,13 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑 First Splitwise exports and balances imported (November)
 - [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
 - [x] 🤖 Weekly settle-up nudge (`nudge` command; scheduled phone notification)
-- [ ] 🧑 Earlier months' Splitwise exports (so earlier rent and shared costs count only your share)
+- [x] 🧑 Splitwise: weekly Friday screenshots of balances (earlier months not needed; rent handled by the household rule)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)
 - [x] 🧑 Phone-plan share confirmed and added by hand
-- [ ] 🧑 Apple Card statements (purchases currently missing: only card payments are visible)
-- [ ] 🤖 Annual expenses detected automatically (needs a year of history; add by hand meanwhile)
-- [ ] 🤖 Credit card due dates and utilization
+- [x] 🧑 Apple Card statements: not needed (no recurring charges on it); its purchases stay out of spending
+- [x] 🧑🤖 Annual / periodic expenses: added by hand as they come (tuition, bonus etc.)
+- [x] Credit card due dates and utilization: dropped (optional, not needed)
 - [x] 🧑🤖 Category corrections you can make (`txn-find`, `categorize` with notes); Education category added
 - [x] 🤖 Household rent rule: fixed rent share every month; utilities billed with rent at your share; unexplained extras flagged
 - [x] 🧑🤖 Flagged rent extra explained and split (`split-txn`)
@@ -64,7 +64,9 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑 Tuition and bonus: added when they arrive, not estimated ahead (placeholders removed)
 
 ## Stage 4 — Budgets
-- [ ] Not started
+- [x] 🧑 Budget year set: Nov 10 to Nov 9 (first year: Nov 10, 2026 – Nov 9, 2027)
+- [ ] 🧑 Annual budget per category
+- [ ] 🤖 Budget tracking on the dashboard (spent vs budget, pace, alerts)
 
 ## Stage 5 — Monthly reports
 - [ ] Not started
@@ -94,5 +96,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Rent = fixed monthly share, regardless of who paid the landlord | Rent payments and housemate settle-ups move irregularly between people |
 | 2026-11-10 | Private settings (labels, household rule) live in the data folder; tests use an empty temp one | Tests must never read real personal files |
 | 2026-11-10 | 8 coloured categories + Other (Transport & travel merged; Health & care added) | The validated palette has 8 distinguishable colours |
+| 2026-11-10 | Stage 3 closed without card due dates, Apple Card import or earlier Splitwise months | Not needed: no recurring charges on Apple Card; Splitwise kept current weekly |
+| 2026-11-10 | Budget year runs Nov 10 – Nov 9 | Starts from the day budgets are set up |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |
