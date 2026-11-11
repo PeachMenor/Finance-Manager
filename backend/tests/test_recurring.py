@@ -56,7 +56,7 @@ def test_shopping_habits_are_not_subscriptions(session):
 
 def test_lapsed_subscription_flagged(session):
     a = _acct(session)
-    _txns(session, a, "OldGym", [(date(2026, 7, 1), 3000), (date(2026, 8, 1), 3000)], "PERSONAL_CARE")
+    _txns(session, a, "OldGym", [(date(2026, 7, 1), 3000), (date(2026, 8, 1), 3000)], "GENERAL_SERVICES")
     session.commit()
     b = _names(session)["OldGym"]
     assert b.active is False and b.next_expected is None
@@ -195,3 +195,13 @@ def test_remove_hand_added_item(session):
     assert cli.main(["recurring-remove", "Placeholder"]) == 0
     session.expire_all()
     assert session.scalars(select(ManualRecurring)).all() == []
+
+
+def test_gym_membership_counts_after_two_months(session):
+    a = _acct(session)
+    for i, d in enumerate([date(2026, 9, 5), date(2026, 10, 5)]):
+        session.add(Transaction(account_id=a.id, external_id=f"g{i}", posted_on=d, amount_cents=-2_500,
+                                description="FitClub", provider_category="PERSONAL_CARE",
+                                provider_category_detailed="PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS"))
+    session.commit()
+    assert "FitClub" in _names(session)

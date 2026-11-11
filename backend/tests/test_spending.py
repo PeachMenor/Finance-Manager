@@ -12,14 +12,16 @@ from app.services.spending import CATEGORIES, classify, monthly_summary
 @pytest.mark.parametrize(
     "primary, detailed, amount, kind, category",
     [
-        ("FOOD_AND_DRINK", "FOOD_AND_DRINK_GROCERIES", -5_000, "spending", "Food"),
+        ("FOOD_AND_DRINK", "FOOD_AND_DRINK_GROCERIES", -5_000, "spending", "Food & groceries"),
+        ("GENERAL_MERCHANDISE", "GENERAL_MERCHANDISE_SUPERSTORES", -5_000, "spending", "Food & groceries"),
+        ("PERSONAL_CARE", None, -3_000, "spending", "Personal care & shopping"),
         ("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT", -200_000, "spending", "Rent"),
         ("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_INTERNET_AND_CABLE", -6_000, "spending", "Bills & subscriptions"),
         ("INCOME", "INCOME_WAGES", 300_000, "income", None),
         ("INCOME", "INCOME_RENTAL", 200_000, "spending", "Rent"),
         ("LOAN_PAYMENTS", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT", -50_000, "transfer", None),
         ("TRANSFER_OUT", None, -10_000, "transfer", None),
-        ("MEDICAL", None, -9_000, "spending", "Health & care"),
+        ("MEDICAL", None, -9_000, "spending", "Health care"),
         ("GENERAL_SERVICES", "GENERAL_SERVICES_AUTOMOTIVE", -2_000, "spending", "Transport & travel"),
         ("GENERAL_SERVICES", "GENERAL_SERVICES_INSURANCE", -9_000, "spending", "Bills & subscriptions"),
         ("GOVERNMENT_AND_NON_PROFIT", None, -500, "spending", "Other"),
@@ -63,7 +65,7 @@ def test_month_math_rent_via_card_counts_once(session):
     assert [m["month"] for m in months] == ["2026-10", "2026-11"]
     o = months[0]
     # Rent 2,000 once; food 300 − 50 = 250; card payment is a transfer
-    assert o["by_category"] == {"Rent": 200_000, "Food": 25_000}
+    assert o["by_category"] == {"Rent": 200_000, "Food & groceries": 25_000}
     assert o["spending_cents"] == 225_000 and o["income_cents"] == 400_000
     assert o["saved_cents"] == 175_000 and o["savings_rate"] == 0.4375  # 1,750 / 4,000
     assert o["partial"] is True and o["has_data"] is True  # history starts Oct 3: month incomplete
@@ -108,7 +110,7 @@ def test_only_your_share_counts(session):
     # September's identical charge is untouched (not shared as far as we know)
     assert m["2026-09"]["by_category"] == {"Bills & subscriptions": 6_000}
     # November: rent half 1,000 + electricity share 40 + dinner 90 + cab 25
-    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Food": 9_000, "Transport & travel": 2_500,
+    assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Food & groceries": 9_000, "Transport & travel": 2_500,
                                           "Bills & subscriptions": 4_000}
     assert m["2026-11"]["spending_cents"] == 115_500
     assert m["2026-11"]["income_cents"] == 500_000  # the Zelle repayment isn't income
@@ -132,7 +134,7 @@ def test_one_charge_matches_only_one_expense(session):
     session.commit()
     m = monthly_summary(session, months=1, today=date(2026, 11, 20))[0]
     # A: charge 40 -> share 20. B: no charge left -> share 20 added, flagged unmatched.
-    assert m["by_category"] == {"Food": 4_000} and m["unmatched_shared"] == 1
+    assert m["by_category"] == {"Food & groceries": 4_000} and m["unmatched_shared"] == 1
 
 
 def test_rent_base_splits_utilities_out(session, tmp_path):
@@ -185,7 +187,7 @@ def test_fixed_rent_share_every_month(session):
     session.commit()
     m = {x["month"]: x for x in monthly_summary(session, months=3, today=date(2026, 11, 20), rent_rule=RULE)}
     assert m["2026-09"]["by_category"] == {"Rent": 100_000}
-    assert m["2026-10"]["by_category"] == {"Rent": 100_000, "Food": 5_000}
+    assert m["2026-10"]["by_category"] == {"Rent": 100_000, "Food & groceries": 5_000}
     # November: your rent share + half of the 200 utilities billed with rent
     assert m["2026-11"]["by_category"] == {"Rent": 100_000, "Bills & subscriptions": 10_000}
 

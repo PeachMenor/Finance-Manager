@@ -65,8 +65,10 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 
 ## Stage 4 — Budgets
 - [x] 🧑 Budget year set: Nov 10 to Nov 9 (first year: Nov 10, 2026 – Nov 9, 2027)
-- [ ] 🧑 Annual budget per category
-- [ ] 🤖 Budget tracking on the dashboard (spent vs budget, pace, alerts)
+- [x] 🧑 Budgets given: eating out, groceries, fuel, subscriptions (monthly); travel, personal care & shopping, health care, education (yearly)
+- [x] 🤖 Categories reshaped around the budgets (Food & groceries, Personal care & shopping, Health care) with finer lines (groceries, fuel)
+- [x] 🤖 Budget tracking: monthly caps (first month pro-rated), yearly pace, statuses; dashboard section and `budgets` command
+- [ ] 🤖 Alerts when a budget is near or over (e.g. in the weekly nudge)
 
 ## Stage 5 — Monthly reports
 - [ ] Not started
@@ -98,5 +100,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | 8 coloured categories + Other (Transport & travel merged; Health & care added) | The validated palette has 8 distinguishable colours |
 | 2026-11-10 | Stage 3 closed without card due dates, Apple Card import or earlier Splitwise months | Not needed: no recurring charges on Apple Card; Splitwise kept current weekly |
 | 2026-11-10 | Budget year runs Nov 10 – Nov 9 | Starts from the day budgets are set up |
+| 2026-11-10 | Budget lines are finer slices of the 8 chart categories (e.g. groceries inside Food & groceries) | Budgets need more detail than a readable chart can colour |
+| 2026-11-10 | Superstores (e.g. warehouse clubs) count as groceries; their fuel counts as fuel | Mostly food staples; changeable per transaction |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

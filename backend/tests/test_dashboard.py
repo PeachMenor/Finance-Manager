@@ -148,3 +148,7 @@ def test_dashboard_includes_recurring(session):
     d = build_dashboard(session)
     assert d["recurring"]["bills"] == [] and d["recurring"]["all_monthly_cents"] == 0
     assert d["recurring"]["totals"] == {"income": 0, "bill": 0, "loan": 0, "saving": 0, "planned": 0}
+
+
+def test_dashboard_budgets_absent_without_file(session):
+    assert build_dashboard(session)["budgets"] is None

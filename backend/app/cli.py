@@ -439,6 +439,33 @@ def cmd_recurring_remove(name: str) -> int:
     return 0
 
 
+def cmd_budgets() -> int:
+    """Budget lines: spent this year / this month against your limits."""
+    from app.config import data_dir
+    from app.db.base import SessionLocal, init_db
+    from app.services.budgets import BudgetConfig, budget_progress
+    from app.services.money import format_cents
+    from app.services.spending import RentRule
+
+    cfg = BudgetConfig.load(data_dir() / "budgets.json")
+    if cfg is None:
+        print("No budgets yet: create data/budgets.json (see app/services/budgets.py).")
+        return 1
+    init_db()
+    with SessionLocal() as session:
+        p = budget_progress(session, cfg, rent_rule=RentRule.load(data_dir() / "household.json"))
+    print(f"Budget year {p['year_start']} to {p['year_end']} ({p['elapsed_fraction'] * 100:.1f}% elapsed)")
+    for r in p["lines"]:
+        if r["period"] == "monthly":
+            detail = (f"this month {format_cents(r['month_spent_cents'])} of {format_cents(r['month_cap_cents'])}"
+                      f" (cap {format_cents(r['monthly_cents'])}/mo)")
+        else:
+            detail = f"this year {format_cents(r['year_spent_cents'])} of {format_cents(r['annual_cents'])}"
+        print(f"  {r['name']:<26} {detail:<52} {r['status']}")
+    print(f"  Total: {format_cents(p['total_spent_cents'])} of {format_cents(p['total_annual_cents'])} for the year")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -637,6 +664,7 @@ def main(argv: list[str] | None = None) -> int:
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
     sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
+    sub.add_parser("budgets", help="budget lines: spent against your limits")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
     rr = sub.add_parser("recurring-remove", help="remove a bill or expected income you added by hand")
     rr.add_argument("name")
@@ -714,6 +742,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_recurring_remove(args.name)
     if args.command == "recurring-add":
         return cmd_recurring_add(args)
+    if args.command == "budgets":
+        return cmd_budgets()
     if args.command == "nudge":
         return cmd_nudge()
     if args.command == "splitwise-import-expenses":

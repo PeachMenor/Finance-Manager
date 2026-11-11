@@ -54,7 +54,9 @@ from app.services.spending import canonical, classify, match_split_expenses
 MIN_GAP_DAYS, MAX_GAP_DAYS = 25, 35
 MAX_PRICE_CHANGE = 0.25  # chaining tolerance
 STEADY = 0.01            # a "same price" step: within 1%
-HABIT_CATEGORIES = {"Food", "Shopping", "Transport & travel"}
+HABIT_CATEGORIES = {"Food & groceries", "Personal care & shopping", "Transport & travel"}
+# Memberships inside "habit" categories: treated like any other subscription.
+MEMBERSHIP_DETAILED = {"PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS"}
 SAVING_DETAILED = {"TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS", "TRANSFER_OUT_SAVINGS"}
 ACTIVE_WITHIN_DAYS = 40  # a monthly bill not seen for longer is shown as possibly cancelled
 
@@ -110,7 +112,8 @@ def _looks_like_subscription(s: list[Transaction]) -> bool:
     first = s[-1]
     category = classify(first.provider_category, first.provider_category_detailed,
                         first.amount_cents, first.category).category
-    return len(s) >= (3 if category in HABIT_CATEGORIES else 2)
+    habit = category in HABIT_CATEGORIES and first.provider_category_detailed not in MEMBERSHIP_DETAILED
+    return len(s) >= (3 if habit else 2)
 
 
 def load_labels(path: Path | None) -> list[dict]:

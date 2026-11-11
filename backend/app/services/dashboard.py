@@ -22,6 +22,7 @@ from app.services.loans import estimate_balance, months_to_payoff
 from app.config import data_dir
 from app.services.networth import compute_net_worth
 from app.services.recurring import detect_recurring, monthly_total_cents
+from app.services.budgets import BudgetConfig, budget_progress
 from app.services.spending import CATEGORIES, RentRule, monthly_summary
 
 GROUPS = [
@@ -101,6 +102,13 @@ def net_worth_history(session: Session, currency: str = "USD") -> list[dict]:
     return history
 
 
+def _budgets(session: Session, today: date) -> dict | None:
+    cfg = BudgetConfig.load(data_dir() / "budgets.json")
+    if cfg is None:
+        return None
+    return budget_progress(session, cfg, today, RentRule.load(data_dir() / "household.json"))
+
+
 def _recurring(session: Session, today: date) -> dict:
     bills = detect_recurring(session, today=today, labels_path=data_dir() / "recurring_labels.json")
     return {
@@ -163,6 +171,7 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "loans": loans,
         "history": net_worth_history(session),
         "recurring": _recurring(session, today),
+        "budgets": _budgets(session, today),
         "spending": {
             "categories": CATEGORIES,
             "months": monthly_summary(session, months=6, today=today,
