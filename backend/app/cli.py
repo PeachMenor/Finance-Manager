@@ -13,6 +13,7 @@
     python -m app.cli loan-set ...          add or update a loan entered by hand (see --help)
     python -m app.cli txn-find TEXT         search transactions (text, amount or note)
     python -m app.cli categorize ID CAT     your own category for a transaction (--note "...")
+    python -m app.cli split-txn ID A=1 B=2  split one payment across categories
     python -m app.cli loans                 show hand-entered loans: estimated balance, payoff
 
 `demo` and `plaid-sandbox-check` use data/demo.db, a separate database, so your
@@ -268,7 +269,8 @@ def cmd_recurring() -> int:
         from app.config import data_dir
 
         bills = detect_recurring(session, labels_path=data_dir() / "recurring_labels.json")
-        titles = {"bill": "BILLS & SUBSCRIPTIONS", "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING"}
+        titles = {"bill": "BILLS & SUBSCRIPTIONS", "loan": "LOAN PAYMENTS", "saving": "SAVING & INVESTING",
+                  "planned": "COMING UP (set aside per month)"}
         for kind, title in titles.items():
             group = [b for b in bills if b.kind == kind]
             if not group:
@@ -277,7 +279,9 @@ def cmd_recurring() -> int:
             for b in group:
                 when = f"next ~{b.next_expected}" if b.next_expected else "—"
                 extra = f"  ({b.note})" if b.note else ""
-                print(f"  {b.name:<26} {format_cents(b.amount_cents):>10}/mo  {b.category:<18} "
+                per = f"set aside {format_cents(b.set_aside_cents)}/mo of {format_cents(b.amount_cents)}" \
+                    if b.kind == "planned" else f"{format_cents(b.amount_cents):>10}/mo"
+                print(f"  {b.name:<26} {per}  {b.category:<18} "
                       f"{(b.account or ''):<30} {when}{extra}")
         print(f"\n  Leaves your accounts each month: {format_cents(monthly_total_cents(bills, None))}")
     return 0
@@ -301,8 +305,13 @@ def cmd_recurring_add(a) -> int:
         if row is None:
             row = ManualRecurring(name=a.name)
             session.add(row)
+        from datetime import date as _date
+
         row.amount_cents, row.category = to_cents(a.amount), a.category
         row.day_of_month, row.paid_via, row.note = a.day, a.paid_via, a.note
+        row.cadence = None if a.cadence == "monthly" else a.cadence
+        row.next_due = _date.fromisoformat(a.next_due) if a.next_due else None
+        row.due_note = a.due_note
         session.commit()
         print(f"Saved monthly bill '{a.name}'.")
     return 0
@@ -359,6 +368,41 @@ def cmd_categorize(txn_id: int, category: str, note: str | None) -> int:
             t.note = note or None
         session.commit()
         print(f"#{t.id} {t.posted_on} {t.description}: {t.category or 'automatic'}" + (f" [{t.note}]" if t.note else ""))
+    return 0
+
+
+def cmd_split_txn(txn_id: int, parts: list[str], note: str | None) -> int:
+    """Split one payment across categories, e.g. Rent=1800 Education=700 (must add up)."""
+    import json
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Transaction
+    from app.services.money import format_cents, to_cents
+    from app.services.spending import CATEGORIES
+
+    split = {}
+    for p in parts:
+        cat, _, amount = p.partition("=")
+        if cat not in CATEGORIES or not amount:
+            print(f"Use CATEGORY=AMOUNT with a category from {CATEGORIES}")
+            return 1
+        split[cat] = split.get(cat, 0) + to_cents(amount)
+    init_db()
+    with SessionLocal() as session:
+        t = session.get(Transaction, txn_id)
+        if t is None:
+            print(f"No transaction #{txn_id}.")
+            return 1
+        if t.amount_cents >= 0 or sum(split.values()) != -t.amount_cents:
+            print(f"Parts add up to {format_cents(sum(split.values()))}, "
+                  f"but the payment is {format_cents(-t.amount_cents)}.")
+            return 1
+        t.split_parts = json.dumps(split)
+        if note is not None:
+            t.note = note or None
+        session.commit()
+        print(f"#{t.id} {t.posted_on} split: " + ", ".join(f"{k} {format_cents(v)}" for k, v in split.items())
+              + (f" [{t.note}]" if t.note else ""))
     return 0
 
 
@@ -567,6 +611,10 @@ def main(argv: list[str] | None = None) -> int:
     cz.add_argument("txn_id", type=int)
     cz.add_argument("category")
     cz.add_argument("--note")
+    sp = sub.add_parser("split-txn", help="split one payment across categories")
+    sp.add_argument("txn_id", type=int)
+    sp.add_argument("parts", nargs="+", help="CATEGORY=AMOUNT ...")
+    sp.add_argument("--note")
     ra = sub.add_parser("recurring-add", help="add a monthly bill by hand")
     ra.add_argument("--name", required=True)
     ra.add_argument("--amount", required=True, help="per month, your share")
@@ -574,6 +622,9 @@ def main(argv: list[str] | None = None) -> int:
     ra.add_argument("--day", type=int, help="usual day of month")
     ra.add_argument("--paid-via", help='e.g. "Splitwise"')
     ra.add_argument("--note")
+    ra.add_argument("--cadence", choices=["monthly", "quarterly", "semester", "yearly"], default="monthly")
+    ra.add_argument("--next-due", help="earliest expected date, YYYY-MM-DD (non-monthly bills)")
+    ra.add_argument("--due-note", help='e.g. "Dec or Jan"')
     sx = sub.add_parser("splitwise-import-expenses", help="load shared expenses (your share) from JSON")
     sx.add_argument("file")
     sub.add_parser("accounts", help="list accounts with their ids")
@@ -616,6 +667,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_plaid_sandbox_check()
     if args.command == "txn-find":
         return cmd_txn_find(args.text)
+    if args.command == "split-txn":
+        return cmd_split_txn(args.txn_id, args.parts, args.note)
     if args.command == "categorize":
         return cmd_categorize(args.txn_id, args.category, args.note)
     if args.command == "recurring":

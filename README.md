@@ -72,6 +72,8 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    If your monthly rent payment also covers utilities, add `"rent_base": <monthly rent>` at the top of that file: the part above it counts as Bills & utilities.
    Household rent: if you share a fixed rent, put `{"rent": {"base_monthly": ..., "your_share_monthly": ..., "people": 2}}` in `data/household.json` (git-ignored). Rent then counts as your fixed share every month, whoever paid the landlord; rent payments and housemate settle-ups become transfers.
    Fix a transaction's category (kept across syncs): `python -m app.cli txn-find TEXT`, then `python -m app.cli categorize ID Education --note "what it was"`.
+   One payment that covered two things: `python -m app.cli split-txn ID Rent=1800 Education=700 --note "..."` (parts must add up).
+   Bills that come every few months (tuition, yearly renewals): `python -m app.cli recurring-add --name ... --amount ... --category ... --cadence semester --next-due YYYY-MM-DD`; the dashboard shows them under "Coming up" with a monthly set-aside.
    Recurring bills and subscriptions (found automatically): `python -m app.cli recurring`. Add one that never hits your accounts (e.g. a share paid through Splitwise) with `python -m app.cli recurring-add --name ... --amount ... --category ...`. Optional friendlier names go in `data/recurring_labels.json` (git-ignored).
    Weekly settle-up reminder text (who to pay, who to collect from): `python -m app.cli nudge`.
 9. Start the server (from `backend/`):

@@ -197,6 +197,13 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
         if k not in spending:
             continue
         first_day[k] = min(first_day.get(k, t.posted_on), t.posted_on)
+        if t.parts():  # your own split of one payment across categories
+            for cat, cents in t.parts().items():
+                if rent_rule and cat == "Rent":
+                    rent_paid[t.posted_on] += cents
+                else:
+                    spending[k][cat] += cents
+            continue
         c = classify(t.provider_category, t.provider_category_detailed, t.amount_cents, t.category)
         if c.kind == "spending" and rent_rule and c.category == "Rent":
             rent_paid[t.posted_on] += -t.amount_cents  # household rent payment: handled below

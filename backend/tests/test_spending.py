@@ -221,3 +221,20 @@ def test_recategorized_rent_lookalike_moves_out_of_rent(session):
     assert m["by_category"] == {"Rent": 100_000, "Education": 80_000}
     assert session.get(Transaction, t.id).note == "Program fee"
     assert cli.main(["categorize", str(t.id), "Nonsense"]) == 1
+
+
+def test_split_payment_rent_plus_fee(session):
+    from app import cli
+
+    chk, card = _two_accounts(session)
+    _rent_via_card(session, chk, card, date(2026, 8, 18), 350_000, "aug")  # rent 2,000 + 1,500 fee
+    session.commit()
+    t = session.scalar(select(Transaction).where(Transaction.external_id == "aug1"))
+    assert cli.main(["split-txn", str(t.id), "Rent=2000", "Education=1499"]) == 1  # doesn't add up
+    assert cli.main(["split-txn", str(t.id), "Rent=2000", "Education=1500", "--note", "rent + fee"]) == 0
+    session.expire_all()  # the command saved through its own session
+    m = monthly_summary(session, months=1, today=date(2026, 8, 25), rent_rule=RULE)[0]
+    assert m["by_category"] == {"Rent": 100_000, "Education": 150_000} and m["flags"] == []
+    # Without the household rule, the split counts as written.
+    m2 = monthly_summary(session, months=1, today=date(2026, 8, 25))[0]
+    assert m2["by_category"] == {"Rent": 200_000, "Education": 150_000}

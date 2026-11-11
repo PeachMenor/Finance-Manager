@@ -142,6 +142,16 @@ class Transaction(Base):
     description: Mapped[str] = mapped_column(String(300))
     category: Mapped[str | None] = mapped_column(String(80))  # your own override (Stage 3)
     note: Mapped[str | None] = mapped_column(String(300))  # your own note, e.g. what a charge was for
+    # Your own split of one payment across categories, JSON {"Rent": 100000, "Education": 50000}
+    # in cents of money out; must add up to the payment. Overrides `category`.
+    split_parts: Mapped[str | None] = mapped_column(String(500))
+
+    def parts(self) -> dict[str, int] | None:
+        if not self.split_parts:
+            return None
+        import json
+
+        return {k: int(v) for k, v in json.loads(self.split_parts).items()}
     # The provider's category, e.g. Plaid primary "FOOD_AND_DRINK", detailed
     # "FOOD_AND_DRINK_GROCERIES". Refreshed on every sync; never overrides `category`.
     provider_category: Mapped[str | None] = mapped_column(String(80))
@@ -297,3 +307,7 @@ class ManualRecurring(Base):
     day_of_month: Mapped[int | None] = mapped_column(Integer)
     paid_via: Mapped[str | None] = mapped_column(String(120))  # e.g. "Splitwise"
     note: Mapped[str | None] = mapped_column(String(300))
+    # Non-monthly bills (tuition, insurance renewals...): how often, and when next.
+    cadence: Mapped[str | None] = mapped_column(String(20))  # monthly (default) | quarterly | semester | yearly
+    next_due: Mapped[date | None] = mapped_column(Date)  # earliest expected date
+    due_note: Mapped[str | None] = mapped_column(String(120))  # e.g. "Dec or Jan"

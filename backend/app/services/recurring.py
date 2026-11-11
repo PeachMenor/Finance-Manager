@@ -17,6 +17,10 @@ Two sources:
 
 3. Loan payments: each hand-entered loan's regular monthly payment and due day.
 
+5. Upcoming periodic expenses (kind "planned"): hand-added bills that come every
+   few months (tuition per semester, yearly renewals). Shown with their next due
+   date and a monthly set-aside = amount / months in the cycle.
+
 4. Saving & investing: steady monthly transfers into investment or savings
    accounts (same subscription rules), e.g. an automatic brokerage deposit.
 
@@ -51,7 +55,7 @@ ACTIVE_WITHIN_DAYS = 40  # a monthly bill not seen for longer is shown as possib
 
 @dataclass
 class RecurringBill:
-    kind: str  # "bill" | "loan" | "saving"
+    kind: str  # "bill" | "loan" | "saving" | "planned"
     name: str
     merchant: str
     category: str
@@ -63,6 +67,7 @@ class RecurringBill:
     active: bool = True
     charges: list[tuple[date, int]] = field(default_factory=list)
     note: str = ""
+    set_aside_cents: int = 0  # planned only: per month
 
 
 def _add_month(d: date) -> date:
@@ -169,7 +174,19 @@ def detect_recurring(session: Session, today: date | None = None,
                 note="; ".join(notes) or ("" if active else "not seen recently: cancelled?"),
             ))
 
+    cycle_months = {"quarterly": 3, "semester": 6, "yearly": 12}
     for mr in session.scalars(select(ManualRecurring)):
+        if mr.cadence in cycle_months:
+            months = cycle_months[mr.cadence]
+            due_text = mr.due_note or (mr.next_due.isoformat() if mr.next_due else "")
+            bills.append(RecurringBill(
+                kind="planned", name=mr.name, merchant=mr.name, category=mr.category,
+                amount_cents=mr.amount_cents, last_charged=None, next_expected=mr.next_due,
+                account=mr.paid_via, source="manual",
+                note="; ".join(x for x in (f"every {mr.cadence}", f"due {due_text}" if due_text else "", mr.note) if x),
+                set_aside_cents=round(mr.amount_cents / months),
+            ))
+            continue
         nxt = None
         if mr.day_of_month:
             nxt = date(today.year, today.month, min(mr.day_of_month, 28))
@@ -200,11 +217,15 @@ def detect_recurring(session: Session, today: date | None = None,
             source="loan", active=lt.account.balance_cents > 0, note=note,
         ))
 
-    order = {"bill": 0, "loan": 1, "saving": 2}
+    order = {"bill": 0, "loan": 1, "saving": 2, "planned": 3}
     bills.sort(key=lambda b: (order[b.kind], not b.active, -b.amount_cents))
     return bills
 
 
 def monthly_total_cents(bills: list[RecurringBill], kind: str | None = "bill") -> int:
-    """Monthly total of active items of one kind (default: bills); kind=None for everything."""
-    return sum(b.amount_cents for b in bills if b.active and (kind is None or b.kind == kind))
+    """Monthly total of active items of one kind (default: bills); kind=None for every
+    monthly outflow (bills, loans, saving). Planned items count their monthly set-aside."""
+    if kind == "planned":
+        return sum(b.set_aside_cents for b in bills if b.kind == "planned")
+    return sum(b.amount_cents for b in bills
+               if b.active and b.kind != "planned" and (kind is None or b.kind == kind))

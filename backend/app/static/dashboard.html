@@ -488,7 +488,8 @@ function renderBills(d) {
     `${money(r.all_monthly_cents)} leaves your accounts each month`;
   if (!r.bills.length) { box.append(el("p", { className: "zero" }, "None found yet.")); return; }
   const shortDate = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const groups = [["bill", "Bills & subscriptions"], ["loan", "Loan payments"], ["saving", "Saving & investing"]];
+  const groups = [["bill", "Bills & subscriptions"], ["loan", "Loan payments"], ["saving", "Saving & investing"],
+                  ["planned", "Coming up"]];
   for (const [kind, title] of groups) {
     const items = r.bills.filter((b) => b.kind === kind);
     if (!items.length) continue;
@@ -496,11 +497,14 @@ function renderBills(d) {
     box.append(el("div", { className: "bill-group-head" },
       el("span", { className: "eyebrow", textContent: title }),
       el("span", { className: "small muted num",
-        textContent: `${money(total)}/mo` + (kind === "bill" ? ` · ${money0(total * 12)}/yr` : "") })));
+        textContent: kind === "planned" ? `set aside ${money(total)}/mo`
+          : `${money(total)}/mo` + (kind === "bill" ? ` · ${money0(total * 12)}/yr` : "") })));
     const ul = el("ul", { className: "rows bills" });
     for (const b of items) {
-      const meta = [b.account, kind === "bill" ? b.category : null,
-        b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null].filter(Boolean).join(" · ");
+      const meta = kind === "planned"
+        ? [b.category, b.note || null, `set aside ${money(b.set_aside_cents)}/mo`].filter(Boolean).join(" · ")
+        : [b.account, kind === "bill" ? b.category : null,
+           b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null].filter(Boolean).join(" · ");
       ul.append(el("li", { className: b.active ? "" : "inactive" },
         el("div", { className: "name" }, el("div", { textContent: b.name }), el("div", { className: "meta", textContent: meta })),
         el("div", { className: "amt num", textContent: money(b.amount_cents) })));

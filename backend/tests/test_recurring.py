@@ -125,3 +125,15 @@ def test_label_can_set_category(session, tmp_path):
     labels.write_text('{"labels": [{"merchant": "WashPay", "label": "Laundry", "category": "Bills & utilities"}]}')
     b = _names(session, labels_path=labels)["Laundry"]
     assert b.category == "Bills & utilities"
+
+
+def test_planned_periodic_expense(session):
+    session.add(ManualRecurring(name="Course fees", amount_cents=120_000, category="Education",
+                                cadence="semester", next_due=date(2026, 12, 1), due_note="Dec or Jan"))
+    session.commit()
+    bills = detect_recurring(session, today=TODAY)
+    b = bills[0]
+    assert b.kind == "planned" and b.next_expected == date(2026, 12, 1)
+    assert b.set_aside_cents == 20_000 and "due Dec or Jan" in b.note
+    assert monthly_total_cents(bills) == 0 and monthly_total_cents(bills, None) == 0  # not a monthly outflow
+    assert monthly_total_cents(bills, "planned") == 20_000

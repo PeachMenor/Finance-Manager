@@ -52,11 +52,12 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)
 - [x] 🧑 Phone-plan share confirmed and added by hand
 - [ ] 🧑 Apple Card statements (purchases currently missing: only card payments are visible)
-- [ ] 🤖 Annual expenses with monthly set-aside
+- [ ] 🤖 Annual expenses detected automatically (needs a year of history; add by hand meanwhile)
 - [ ] 🤖 Credit card due dates and utilization
 - [x] 🧑🤖 Category corrections you can make (`txn-find`, `categorize` with notes); Education category added
 - [x] 🤖 Household rent rule: fixed rent share every month; utilities billed with rent at your share; unexplained extras flagged
-- [ ] 🧑 Explain the flagged extra on one rent payment
+- [x] 🧑🤖 Flagged rent extra explained and split (`split-txn`)
+- [x] 🤖 Upcoming periodic expenses (semester / quarterly / yearly) with monthly set-aside ("Coming up")
 
 ## Stage 4 — Budgets
 - [ ] Not started
