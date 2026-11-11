@@ -63,5 +63,6 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Dashboard is one simple page; per-stock investments tab with daily prices deferred | User priority: see net worth, loans, expenses and savings at once first |
 | 2026-11-10 | Hand-entered loans follow actual payments from bank transactions with daily interest | Payments are irregular; simple-interest lenders accrue daily |
 | 2026-11-10 | Expenses count only your share; card bill payments, settle-ups and loan principal are transfers | Shared purchases on a card would otherwise inflate spending |
+| 2026-11-10 | 401k and unvested stock awards are shown on the dashboard but not counted in net worth | Net worth should reflect money available outside retirement and unvested awards |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

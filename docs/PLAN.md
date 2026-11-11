@@ -81,6 +81,7 @@ Finance-Manager/
 - **Expenses:** this month's spending, monthly and annual expenses (filled in by Stage 3) 🤖
 - **Savings:** savings balances and how much you saved this month 🤖
 - **People:** what you owe and what you're owed (from Splitwise screenshots) 🤖
+- **Shown but not counted in net worth:** retirement accounts (401k), unvested stock awards and the HSA each appear with their current value in their own section, so they're visible without inflating net worth. Which accounts count is a per-account switch (`exclude` / `include`) 🤖
 - Net worth history chart 🤖
 - Review the look and tell me what to change 🧑
 

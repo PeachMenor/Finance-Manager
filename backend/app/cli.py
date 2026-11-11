@@ -51,16 +51,24 @@ def _print_summary(session) -> None:
     s = compute_net_worth(session)
     width = 44
     print("\nACCOUNTS")
-    hidden = [a for a in s.accounts if a.hidden]
-    for a in (a for a in s.accounts if not a.hidden):
+    hidden = [a for a in s.accounts if a.hidden and a.included]
+    for a in (a for a in s.accounts if not a.hidden and a.included):
         sign = "−" if a.is_liability else " "
-        note = "" if a.included else "  (not counted)"
+        note = ""
         label = f"{a.institution} · {a.name}"
         if len(label) > width:
             label = label[: width - 1] + "…"
         print(f"  {label:<{width}} {a.kind:<12} {sign}{format_cents(a.balance_cents):>12}{note}")
     if hidden:
         print(f"  ({len(hidden)} hidden account(s) not listed but still counted)")
+    not_counted = [a for a in s.accounts if not a.included]
+    if not_counted:
+        print("\nSHOWN, NOT COUNTED IN NET WORTH")
+        for a in not_counted:
+            label = f"{a.institution} · {a.name}"
+            if len(label) > width:
+                label = label[: width - 1] + "…"
+            print(f"  {label:<{width}} {a.kind:<12}  {format_cents(a.balance_cents):>12}")
     print("\nPEOPLE (who owes whom)")
     if not s.people:
         print("  (none)")
@@ -74,7 +82,7 @@ def _print_summary(session) -> None:
     print(f"  {'You owe':<{width}} {'−' + format_cents(s.you_owe_cents):>26}")
     print(f"  {'NET WORTH':<{width}} {format_cents(s.net_worth_cents):>26}")
     if s.excluded_cents:
-        print(f"  {'Not counted (e.g. unvested awards)':<{width}} {format_cents(s.excluded_cents):>26}")
+        print(f"  {'Shown, not counted (total)':<{width}} {format_cents(s.excluded_cents):>26}")
     print()
 
 

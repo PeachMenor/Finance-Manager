@@ -112,3 +112,16 @@ def test_summary_endpoint(session):
         {"name": "Alex", "amount_cents": 4000},
         {"name": "Sam", "amount_cents": -2550},
     ]
+
+
+def test_summary_lists_not_counted_accounts(session):
+    _load_demo(session)
+    acct = session.scalar(select(Account).where(Account.external_id == "demo-401k"))
+    acct.include_in_net_worth = False
+    session.commit()
+    with TestClient(app, base_url="http://localhost") as client:
+        body = client.get("/summary").json()
+    assert body["net_worth_cents"] == EXPECTED_NET_WORTH_CENTS - 2_000_000
+    assert body["not_counted"] == [
+        {"name": "Demo 401k", "institution": "Demo Brokerage", "kind": "retirement", "balance_cents": 2_000_000}
+    ]

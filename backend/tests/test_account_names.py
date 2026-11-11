@@ -109,7 +109,9 @@ def test_exclude_and_include_change_net_worth(session, capsys):
     s = compute_net_worth(session)
     assert (s.assets_cents, s.excluded_cents, s.net_worth_cents) == (0, 60_000, 0)
     cli._print_summary(session)
-    assert "Not counted" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "SHOWN, NOT COUNTED IN NET WORTH" in out and "Stock Awards ••1234" in out
+    assert "Shown, not counted (total)" in out
     assert cli.cmd_set_counted(acct_id, True) == 0
     session.expire_all()
     assert compute_net_worth(session).net_worth_cents == 60_000

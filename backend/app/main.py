@@ -95,5 +95,11 @@ def summary(session: Session = Depends(get_session)) -> dict:
         "owed_to_you_cents": s.owed_to_you_cents,
         "you_owe_cents": s.you_owe_cents,
         "excluded_cents": s.excluded_cents,
+        # Shown on the dashboard but not part of net worth (e.g. retirement, unvested awards).
+        "not_counted": [
+            {"name": a.name, "institution": a.institution, "kind": a.kind, "balance_cents": a.balance_cents}
+            for a in s.accounts
+            if not a.included
+        ],
         "people": [{"name": n, "amount_cents": c} for n, c in s.people],
     }
