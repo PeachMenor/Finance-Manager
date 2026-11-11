@@ -248,46 +248,38 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     return 0
 
 
-CONFIRM_TAG = "Finance confirm"
-CONFIRM_WORDS = ("YES", "PAID", "DONE")
-
-
-def _confirm_inbox() -> str | None:
+def _confirm_page() -> str | None:
+    """Link to your private confirm page (a claude.ai page only you can open),
+    kept in the private data/contact.json as "confirm_page"."""
     import json
 
     from app.config import data_dir
 
     p = data_dir() / "contact.json"
-    return json.loads(p.read_text()).get("confirm_inbox") if p.exists() else None
+    return json.loads(p.read_text()).get("confirm_page") if p.exists() else None
 
 
-def sms_with_confirm_links(headline: str, payee: str, inbox: str | None, test: bool = False) -> str:
-    """A text with tap-to-confirm links.
+def sms_with_confirm_link(headline: str, page: str | None) -> str:
+    """A text with one tap-to-confirm link.
 
-    Texts can't carry real buttons, and Google Fi doesn't deliver text replies sent
-    back to an email address. Instead each option is a mailto: link: tapping it
-    opens a ready-made email to your own inbox ("Finance confirm: PAID <name>");
-    you tap Send, and the reply checker finds it there.
+    Opening the link (signed in to Claude on your phone) records "PAID" for the
+    person in this reminder straight away, with an Undo button and a box for a
+    partial amount. The hourly checker reads that answer and updates the dashboard.
+    Nothing is recorded unless you open the link.
     """
-    from urllib.parse import quote
-
-    if not inbox:
-        return headline + " (No confirm address set: add confirm_inbox to data/contact.json.)"
-    tag = CONFIRM_TAG + (" TEST" if test else "")
-    lines = [headline, "Paid? Tap one, then Send:"]
-    for word, icon in zip(CONFIRM_WORDS, ("✅", "💸", "✔️")):
-        subject = quote(f"{tag}: {word} {payee}")
-        lines.append(f"{icon} {word}: mailto:{inbox}?subject={subject}&body={word}")
-    lines.append("Paid part? Tap PAID and type the amount, e.g. PAID 100")
-    return "\n".join(lines)
+    if not page:
+        return headline + " (No confirm page set: add confirm_page to data/contact.json.)"
+    base = page.split("#")[0]
+    return "\n".join([headline, f"Paid? Tap to confirm: {base}#paid",
+                      f"Paid part, or not yet? {base}"])
 
 
 def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
     """Print the weekly settle-up reminder (used by the scheduled phone nudge).
 
-    With --sms: print a short text message asking you to reply YES once paid, and
-    remember who it asked about (data/pending_settle.json) so a YES reply can be
-    matched to exactly that person.
+    With --sms: print a short text with a tap-to-confirm link, and remember who it
+    asked about (data/pending_settle.json) so the answer is matched to exactly
+    that person.
     """
     import json
     from datetime import datetime, timezone
@@ -305,10 +297,12 @@ def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
                 pending.unlink(missing_ok=True)
                 print("Finance: you don't owe anyone on Splitwise right now.")
                 return 0
-            pending.write_text(json.dumps({"name": who[0], "amount": who[1] / 100,
-                                           "asked_at": datetime.now(timezone.utc).isoformat()}))
-            print(sms_with_confirm_links(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week.",
-                                         who[0], _confirm_inbox()))
+            asked = datetime.now(timezone.utc)
+            pending.write_text(json.dumps({"id": "settle-" + asked.strftime("%Y%m%dT%H%M%S"),
+                                           "name": who[0], "amount": who[1] / 100,
+                                           "asked_at": asked.isoformat()}))
+            print(sms_with_confirm_link(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week.",
+                                        _confirm_page()))
             return 0
         text = build_pay_one(session) if pay_one else build_nudge(session)
         print(text or "Splitwise: all settled up.")

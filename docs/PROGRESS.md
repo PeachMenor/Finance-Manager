@@ -49,7 +49,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Weekly settle-up nudge (`nudge` command); Friday 6 PM phone reminder to pay one person (`--pay-one`, biggest first)
 - [x] 🤖 Reminder asks "Did you pay?"; only an explicit yes records it (`people-settle`), updating balances and logging the payment
 - [x] 🤖 Reminders and report notices go by text message (email-to-text via your mail account)
-- [x] 🤖 Tap-to-confirm links in the reminder text (YES / PAID / DONE open a ready-made email to your own inbox); an hourly check marks the payment (`people-settle --pending`). Text replies can't be used: the carrier doesn't deliver texts sent back to an email address
+- [x] 🤖 One-tap confirm: the reminder text links to a private claude.ai page (`docs/confirm-page.html`, published with the `db` capability, only you can open it). Opening the link records PAID (with Undo and a partial-amount box); an hourly check reads it and runs `people-settle --pending`. Replaced email links, which made you send an email to yourself; text replies can't be used because the carrier doesn't deliver texts sent back to an email address
 - [x] 🧑 Splitwise: weekly Friday screenshots of balances (earlier months not needed; rent handled by the household rule)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)

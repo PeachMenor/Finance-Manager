@@ -1,0 +1,179 @@
+<title>Splitwise Payment Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* One centred slip, like a receipt stub: who, how much, three answer buttons. */
+  :root {
+    --bg: #f6f4ef; --surface: #fcfbf8; --rule: #e2ded5; --rule-strong: #cfcac0;
+    --text: #16150f; --text-2: #55524a; --muted: #85817a;
+    --accent: #1f5f8b; --accent-text: #ffffff; --owe: #c62828; --good: #1a7f37;
+    --serif: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121210; --surface: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+      --text: #f0eee8; --text-2: #c3c0b6; --muted: #8f8c83;
+      --accent: #6aa8d8; --accent-text: #0e0e0c; --owe: #ff6b6b; --good: #4ac26b; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121210; --surface: #1a1a18; --rule: #2c2b27; --rule-strong: #3a3934;
+    --text: #f0eee8; --text-2: #c3c0b6; --muted: #8f8c83;
+    --accent: #6aa8d8; --accent-text: #0e0e0c; --owe: #ff6b6b; --good: #4ac26b; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.5 var(--sans);
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+         padding-block: 32px; }
+  main { max-width: 420px; margin: 0 auto; display: grid; gap: 20px; }
+  .eyebrow { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0; }
+  .slip { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 22px 20px; display: grid; gap: 14px; }
+  h1 { font: 400 24px/1.25 var(--serif); margin: 0; text-wrap: balance; }
+  .amount { font: 400 44px/1 var(--serif); font-variant-numeric: lining-nums tabular-nums; color: var(--owe); margin: 0; }
+  .amount.paid { color: var(--good); }
+  .meta { color: var(--text-2); font-size: 14px; margin: 0; }
+  .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button { font: 600 16px/1 var(--sans); border-radius: 999px; padding: 15px 8px; cursor: pointer;
+           border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); }
+  button.quiet { background: transparent; color: var(--text-2); border-color: var(--rule-strong); font-weight: 500; font-size: 14px; padding: 11px 14px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details { font-size: 14px; color: var(--text-2); }
+  summary { cursor: pointer; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  input { font: 16px var(--sans); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--rule-strong);
+          background: var(--bg); color: var(--text); width: 9em; }
+  .status { font-size: 15px; margin: 0; min-height: 1.5em; }
+  .status.ok { color: var(--good); font-weight: 600; }
+  .status.err { color: var(--owe); }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+  .test { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; border: 1px solid var(--rule-strong);
+          color: var(--muted); border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+</style>
+
+<main>
+  <p class="eyebrow">Finance Manager · Splitwise</p>
+  <section class="slip" aria-live="polite">
+    <h1 id="who">Checking who's next to pay…</h1>
+    <p class="amount" id="amt" hidden></p>
+    <p class="meta" id="meta">This page shows the person from your latest Friday reminder.</p>
+
+    <div id="ask" hidden>
+      <div class="answers">
+        <button id="b-yes" data-word="YES">Yes</button>
+        <button id="b-paid" data-word="PAID">Paid</button>
+        <button id="b-done" data-word="DONE">Done</button>
+      </div>
+      <details>
+        <summary>Paid a different amount?</summary>
+        <div class="row">
+          <label for="custom" class="note" hidden>Amount paid</label>
+          <input id="custom" inputmode="decimal" placeholder="$ amount" aria-label="Amount paid">
+          <button id="b-custom" class="quiet">Record this amount</button>
+        </div>
+      </details>
+    </div>
+
+    <p class="status" id="status"></p>
+    <div id="undo-row" hidden><button id="b-undo" class="quiet">Undo, I haven't paid</button></div>
+  </section>
+  <p class="note">Your dashboard updates within the hour after you tap, and you'll get a text when it's done. Nothing is marked paid unless you tap here.</p>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const money = (c) => "$" + (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const auto = ["#yes", "#paid", "#done"].includes(location.hash.toLowerCase()) ? location.hash.slice(1).toUpperCase() : null;
+  let ref = null, current = null, autoTried = false, busy = false;
+
+  function render() {
+    const d = current;
+    $("ask").hidden = true; $("undo-row").hidden = true; $("amt").hidden = true;
+    if (!d || !d.payee) {
+      $("who").textContent = "Nobody to pay right now";
+      $("meta").textContent = "When the Friday reminder picks someone, they'll show up here.";
+      return;
+    }
+    $("who").innerHTML = "";
+    $("who").append("Did you pay " + d.payee + "?");
+    if (d.test) { const t = document.createElement("span"); t.className = "test"; t.textContent = "TEST"; $("who").append(t); }
+    $("amt").hidden = false;
+    const asked = d.asked_at ? new Date(d.asked_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "";
+    if (d.answer) {
+      $("amt").textContent = money(d.paid_cents ?? d.amount_cents);
+      $("amt").className = "amount paid";
+      const recorded = d.processed_at ? "Dashboard updated." : "Recorded. Your dashboard updates within the hour.";
+      $("status").className = "status ok";
+      $("status").textContent = "✓ " + d.answer + " — " + recorded;
+      $("meta").textContent = "Asked " + asked + ".";
+      $("undo-row").hidden = !!d.processed_at;
+    } else {
+      $("amt").textContent = money(d.amount_cents);
+      $("amt").className = "amount";
+      $("meta").textContent = "On Splitwise · asked " + asked + ". Tap once you've paid.";
+      $("status").className = "status"; $("status").textContent = "";
+      $("ask").hidden = false;
+    }
+  }
+
+  async function answer(word, cents) {
+    if (!ref || !current || busy) return;
+    busy = true;
+    document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    $("status").className = "status"; $("status").textContent = "Recording…";
+    try {
+      await ref.update({ answer: word, answered_at: new Date().toISOString(), paid_cents: cents ?? current.amount_cents, for_id: current.id || null });
+    } catch (e) {
+      $("status").className = "status err";
+      $("status").textContent = "Couldn't record that (" + (e && e.code || "error") + "). Make sure you're signed in to Claude, then tap again.";
+    } finally {
+      busy = false;
+      document.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    }
+  }
+
+  async function undo() {
+    if (!ref || busy) return;
+    busy = true;
+    try {
+      await ref.update({ answer: { __delete__: true }, answered_at: { __delete__: true }, paid_cents: { __delete__: true }, for_id: { __delete__: true } });
+    } catch (e) {
+      try { const s = await ref.get(); const d = { ...s.data() }; delete d.answer; delete d.answered_at; delete d.paid_cents; delete d.for_id; await ref.set(d); }
+      catch (e2) { $("status").className = "status err"; $("status").textContent = "Couldn't undo. Tap again in a moment."; }
+    } finally { busy = false; }
+  }
+
+  ["b-yes", "b-paid", "b-done"].forEach((id) => $(id).addEventListener("click", (e) => answer(e.currentTarget.dataset.word)));
+  $("b-custom").addEventListener("click", () => {
+    const v = parseFloat(($("custom").value || "").replace(/[$,\s]/g, ""));
+    if (!(v > 0)) { $("status").className = "status err"; $("status").textContent = "Type the amount you paid, like 120.50."; return; }
+    answer("PAID", Math.round(v * 100));
+  });
+  $("b-undo").addEventListener("click", undo);
+
+  (async () => {
+    const timer = setTimeout(() => {
+      if (!current) { $("who").textContent = "Still loading…"; $("meta").textContent = "Check your connection, or open this link in the Claude app."; }
+    }, 10000);
+    const db = await (window.claude?.use?.("db") ?? Promise.resolve(null));
+    if (!db) {
+      clearTimeout(timer);
+      $("who").textContent = "Sign in to Claude to answer";
+      $("meta").textContent = "Open this link in the Claude app (or claude.ai) where you're signed in.";
+      return;
+    }
+    ref = db.doc("settle/current");
+    ref.onSnapshot((snap) => {
+      clearTimeout(timer);
+      current = snap.exists ? snap.data() : null;
+      render();
+      if (auto && !autoTried && current && current.payee && !current.answer) { autoTried = true; answer(auto); }
+    }, (e) => {
+      clearTimeout(timer);
+      $("status").className = "status err";
+      $("status").textContent = "Couldn't load (" + (e && e.code || "error") + "). Reopen the link.";
+    });
+  })();
+})();
+</script>
