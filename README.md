@@ -60,6 +60,11 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
      --balance 15000.00 --as-of 2026-11-01 --apr 5.49 --payment 450.00 --day 15
    python -m app.cli loans
    ```
+   If your payments to the lender show up in a linked bank account, let the app follow them (daily interest, any amount, any date) instead of assuming one payment a month:
+   ```bash
+   python -m app.cli loan-set ... --payment-match "Example Auto Finance" --posting-lag 1 \
+     --unpaid-interest 0.00   # interest still owed on the statement date, if any
+   ```
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

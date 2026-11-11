@@ -260,6 +260,9 @@ def cmd_loan_set(a) -> int:
         terms.monthly_payment_cents = to_cents(a.payment)
         terms.payment_day = a.day
         terms.maturity_date = date.fromisoformat(a.maturity) if a.maturity else None
+        terms.payment_match = a.payment_match or None
+        terms.posting_lag_days = a.posting_lag
+        terms.unpaid_interest_cents = to_cents(a.unpaid_interest) if a.unpaid_interest else None
         session.commit()
         refresh_manual_loans(session)
         print(f"Saved loan '{acct.display_name}' (account id {acct.id}).")
@@ -283,10 +286,16 @@ def cmd_loans() -> int:
         if not rows:
             print("No hand-entered loans yet.")
         for t in rows:
-            est = estimate_balance(t, date.today())
+            est = estimate_balance(t, date.today(), session)
             left = months_to_payoff(t, est.balance_cents)
             print(f"\n  {t.account.display_name}")
-            print(f"    statement balance  {format_cents(t.principal_cents)} on {t.balance_as_of}")
+            print(f"    statement balance  {format_cents(t.principal_cents)} on {t.balance_as_of}"
+                  + (f" (+ {format_cents(t.unpaid_interest_cents)} unpaid interest)" if t.unpaid_interest_cents else ""))
+            if t.payment_match:
+                print(f"    tracking payments  matching \"{t.payment_match}\" in bank transactions"
+                      f" (posting lag {t.posting_lag_days or 0} day(s)), daily interest")
+                for p in est.payments:
+                    print(f"      paid {format_cents(p.amount_cents)} credited {p.effective_on}")
             print(f"    APR {t.apr_bps / 100:.2f}%, payment {format_cents(t.monthly_payment_cents)} on day {t.payment_day}")
             print(f"    estimated today    {format_cents(est.balance_cents)} "
                   f"({est.payments_applied} payment(s) applied, {format_cents(est.interest_paid_cents)} of it interest)")
@@ -316,6 +325,12 @@ def main(argv: list[str] | None = None) -> int:
     ls.add_argument("--payment", required=True, help="monthly payment, e.g. 450.00")
     ls.add_argument("--day", required=True, type=int, help="day of month the payment posts (1-28)")
     ls.add_argument("--maturity", help="final payment date, YYYY-MM-DD (optional)")
+    ls.add_argument("--payment-match", help='text in bank transactions for payments to this lender, '
+                    'e.g. "Example Auto Finance"; enables payment tracking with daily interest')
+    ls.add_argument("--posting-lag", type=int, default=0,
+                    help="days between the lender crediting a payment and your bank posting it (default 0)")
+    ls.add_argument("--unpaid-interest", help="interest accrued but not yet paid on the statement date "
+                    "(e.g. after a principal-only payment), e.g. 12.34")
     sub.add_parser("loans", help="show hand-entered loans")
     for cmd in ("hide", "unhide"):
         sp = sub.add_parser(cmd, help=f"{cmd} an account on the dashboard")

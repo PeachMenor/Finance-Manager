@@ -119,3 +119,91 @@ def test_sync_now_also_refreshes_loans(session):
     app.dependency_overrides.clear()
     session.refresh(acct)
     assert acct.balance_cents < 1_000_000
+
+
+# ---- payment tracking (made-up numbers) ----
+#   Statement: $8,000.00 owed on 2026-08-31, 6.00% APR, daily interest.
+#   Bank posts payments 1 day after the lender credits them.
+#   Paid $600, bank 09-29 -> credited 09-28: 28 days interest = $36.82 -> 7,436.82
+#   Paid $800, bank 11-03 -> credited 11-02: 35 days interest = $42.79 -> 6,679.61
+
+
+def _tracked_loan(session, as_of=date(2026, 8, 31), principal=800_000):
+    bank = Account(name="Checking", kind=AccountKind.CHECKING, source=DataSource.MANUAL,
+                   external_id="chk", balance_cents=0)
+    loan = Account(name="Car loan", kind=AccountKind.LOAN, source=DataSource.MANUAL,
+                   external_id="loan-car", balance_cents=principal)
+    session.add_all([bank, loan])
+    session.flush()
+    t = _terms(principal=principal, as_of=as_of)
+    t.account_id, t.payment_match, t.posting_lag_days = loan.id, "example auto", 1
+    session.add(t)
+    session.commit()
+    return bank, loan, t
+
+
+def _txn(session, bank, ext, posted, cents, desc="EXAMPLE AUTO FINANCE PMT"):
+    from app.db.models import Transaction
+
+    session.add(Transaction(account_id=bank.id, external_id=ext, posted_on=posted,
+                            amount_cents=cents, description=desc))
+    session.commit()
+
+
+def test_tracked_payments_use_daily_interest(session):
+    bank, loan, t = _tracked_loan(session)
+    _txn(session, bank, "p1", date(2026, 9, 29), -60_000)
+    _txn(session, bank, "p2", date(2026, 11, 3), -80_000)
+    est = estimate_balance(t, date(2026, 11, 10), session)
+    assert [p.effective_on for p in est.payments] == [date(2026, 9, 28), date(2026, 11, 2)]
+    assert est.interest_paid_cents == 3_682 + 4_279
+    assert est.balance_cents == 667_961
+
+
+def test_tracking_ignores_unrelated_refunds_and_already_counted(session):
+    bank, loan, t = _tracked_loan(session, as_of=date(2026, 11, 2), principal=667_961)
+    _txn(session, bank, "in-stmt", date(2026, 11, 3), -80_000)  # credited 11-02: already in statement
+    _txn(session, bank, "refund", date(2026, 11, 5), 5_000)  # money in: not a payment
+    _txn(session, bank, "other", date(2026, 11, 6), -9_999, desc="GROCERY STORE")
+    _txn(session, bank, "future", date(2026, 12, 1), -50_000)  # after "today"
+    est = estimate_balance(t, date(2026, 11, 10), session)
+    assert est.payments == [] and est.balance_cents == 667_961
+
+
+def test_tracked_payment_flows_into_net_worth_on_refresh(session):
+    bank, loan, t = _tracked_loan(session)
+    _txn(session, bank, "p1", date(2026, 9, 29), -60_000)
+    refresh_manual_loans(session, today=date(2026, 10, 1))
+    session.refresh(loan)
+    assert loan.balance_cents == 743_682
+    assert compute_net_worth(session).liabilities_cents == 743_682
+
+
+def test_loan_set_tracking_flags(session):
+    args = ["loan-set", "--name", "Car loan", "--institution", "Example Auto Finance",
+            "--balance", "100.00", "--as-of", "2026-01-01", "--apr", "6", "--payment", "50",
+            "--day", "9", "--payment-match", "Example Auto", "--posting-lag", "1"]
+    assert cli.main(args) == 0
+    t = session.scalar(select(LoanTerms))
+    assert (t.payment_match, t.posting_lag_days) == ("Example Auto", 1)
+
+
+def test_unpaid_interest_is_paid_before_principal(session):
+    # Statement: $6,679.61 owed on 11-02 plus $10.00 interest left unpaid.
+    # Paid $600, credited 11-10: 8 days interest $8.78 + $10.00 = $18.78
+    #   principal 600 − 18.78 = 581.22 -> 6,098.39
+    bank, loan, t = _tracked_loan(session, as_of=date(2026, 11, 2), principal=667_961)
+    t.unpaid_interest_cents = 1_000
+    session.commit()
+    _txn(session, bank, "p3", date(2026, 11, 11), -60_000)
+    est = estimate_balance(t, date(2026, 11, 12), session)
+    assert est.interest_paid_cents == 1_878 and est.balance_cents == 609_839
+
+
+def test_payment_smaller_than_interest_leaves_principal_untouched(session):
+    bank, loan, t = _tracked_loan(session, as_of=date(2026, 11, 2), principal=667_961)
+    t.unpaid_interest_cents = 1_000
+    session.commit()
+    _txn(session, bank, "tiny", date(2026, 11, 11), -500)  # $5 < $18.78 owed
+    est = estimate_balance(t, date(2026, 11, 12), session)
+    assert est.balance_cents == 667_961 and est.interest_paid_cents == 500

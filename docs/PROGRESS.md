@@ -27,7 +27,8 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [ ] 🤖 OFX/CSV statement import for unsupported cards
 - [x] 🤖 Hand-entered loans: statement balance + APR + payment, estimated after each payment, refreshed on every sync
 - [x] 🤖 Hide accounts from lists (still counted in net worth)
-- [ ] 🧑🤖 Enter the car loan from its statement
+- [x] 🧑🤖 Enter the car loan from its statement
+- [x] 🤖 Loan payment tracking: payments found in bank transactions, daily interest, unpaid interest carried; verified privately against a real statement
 - [ ] 🤖 Manual accounts: cash balances, unvested RSUs
 - [ ] 🤖 "Sync now" command + daily auto-sync
 - [ ] 🧑🤖 Annual budgets questionnaire
@@ -59,5 +60,6 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Splitwise balances come from a weekly screenshot, not the API | The API requires a paid Pro subscription |
 | 2026-11-10 | Demo commands refuse to wipe any database except `data/demo.db` | A sandbox run once wrote to the real database file; guard prevents it |
 | 2026-11-10 | Dashboard is one simple page; per-stock investments tab with daily prices deferred | User priority: see net worth, loans, expenses and savings at once first |
+| 2026-11-10 | Hand-entered loans follow actual payments from bank transactions with daily interest | Payments are irregular; simple-interest lenders accrue daily |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
 | 2026-11-10 | Link page offers "bank/card" and "investment" buttons | Plaid hides institutions that lack the required product; investment-only logins need their own option |

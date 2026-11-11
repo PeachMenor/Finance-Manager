@@ -232,5 +232,15 @@ class LoanTerms(Base):
     monthly_payment_cents: Mapped[int] = mapped_column(Integer)
     payment_day: Mapped[int] = mapped_column(Integer)  # day of month payments post (1-28)
     maturity_date: Mapped[date | None] = mapped_column(Date)
+    # Optional: text that identifies payments to this lender in your bank transactions
+    # (e.g. "Example Auto Finance"). When set, the balance follows the payments you
+    # actually made, with daily interest, instead of assuming one payment a month.
+    payment_match: Mapped[str | None] = mapped_column(String(120))
+    # Days between the lender crediting a payment and your bank posting it
+    # (e.g. credited Nov 2, shows in the bank Nov 3 -> 1).
+    posting_lag_days: Mapped[int | None] = mapped_column(Integer)
+    # Interest already accrued but not yet paid on `balance_as_of` (e.g. after a
+    # principal-only payment). The next payment covers it before any principal.
+    unpaid_interest_cents: Mapped[int | None] = mapped_column(Integer)
 
     account: Mapped[Account] = relationship()
