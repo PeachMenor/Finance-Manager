@@ -30,7 +30,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🧑🤖 Enter the car loan from its statement
 - [x] 🤖 Loan payment tracking: payments found in bank transactions, daily interest, unpaid interest carried; verified privately against a real statement
 - [ ] 🤖 Manual accounts: cash balances, unvested RSUs
-- [ ] 🤖 Automatic sync while the server runs (on start + every few hours), plus "Sync now"
+- [x] 🤖 Automatic sync while the server runs (on start + every 6 hours, configurable), plus "Sync now"; status shown on the link page
 - [x] 🤖 Exclude accounts from net worth (`exclude` / `include`), e.g. unvested stock awards
 - [ ] 🧑🤖 Annual budgets questionnaire
 

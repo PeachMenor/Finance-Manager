@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 from app.db.base import get_session
 from app.db.models import PlaidItem
 from app.integrations.plaid import PlaidClient, PlaidError
-from app.services.loans import refresh_manual_loans
+from app.services.autosync import STATE as AUTO_SYNC_STATE
+from app.services.autosync import sync_everything
 from app.services.sync import sync_plaid_item
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
@@ -71,8 +72,8 @@ def _plaid_failure(e: PlaidError) -> HTTPException:
 
 @router.get("/status")
 def status(client: PlaidClient = Depends(get_plaid_client)) -> dict:
-    """Which Plaid environment the server is using (sandbox = fake banks)."""
-    return {"env": client.env}
+    """Which Plaid environment the server is using (sandbox = fake banks), and auto-sync status."""
+    return {"env": client.env, "auto_sync": AUTO_SYNC_STATE.view()}
 
 
 @router.post("/link-token")
@@ -128,16 +129,12 @@ def sync_all(
     session: Session = Depends(get_session),
     client: PlaidClient = Depends(get_plaid_client),
 ) -> dict:
-    """Sync every linked login. One failing login doesn't stop the others."""
+    """Sync every linked login ("Sync now"). One failing login doesn't stop the others."""
     results = []
-    for item in session.scalars(select(PlaidItem).order_by(PlaidItem.id)).all():
-        try:
-            r = sync_plaid_item(session, client, item)
-            results.append({**_item_view(item), "ok": True, "new_transactions": r.new_transactions})
-        except PlaidError as e:
-            session.rollback()
-            results.append({**_item_view(item), "ok": False, "error": e.error_code})
-    refresh_manual_loans(session)  # hand-entered loans move with each payment date
+    for r in sync_everything(session, client):
+        view = {**_item_view(r.item), "ok": r.ok}
+        view.update({"new_transactions": r.new_transactions} if r.ok else {"error": r.error})
+        results.append(view)
     return {"items": results}
 
 

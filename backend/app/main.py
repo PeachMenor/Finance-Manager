@@ -8,6 +8,10 @@ be reachable from this computer.
   reading a local server.
 """
 
+import asyncio
+import contextlib
+import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,9 +22,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.plaid import router as plaid_router
-from app.db.base import get_session, init_db
+from app.db.base import SessionLocal, get_session, init_db
+from app.integrations.plaid import PlaidClient
+from app.services.autosync import auto_sync_hours, auto_sync_loop
 from app.db.models import Account
 from app.services.networth import compute_net_worth
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
 STATIC_DIR = Path(__file__).parent / "static"
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
@@ -30,7 +38,15 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 async def lifespan(_app: FastAPI):
     # Create tables on startup so a fresh clone works without a migration step.
     init_db()
+    task = None
+    hours = auto_sync_hours()
+    if hours > 0 and os.getenv("PLAID_CLIENT_ID") and os.getenv("PLAID_SECRET"):
+        task = asyncio.create_task(auto_sync_loop(SessionLocal, PlaidClient.from_env, hours))
     yield
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 app = FastAPI(title="Finance Manager", lifespan=lifespan)

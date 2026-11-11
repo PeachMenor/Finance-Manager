@@ -84,6 +84,7 @@
     <div class="actions" style="margin-top:12px">
       <button id="sync">Sync now</button>
     </div>
+    <p class="hint" id="auto-sync"></p>
   </section>
 </main>
 
@@ -200,9 +201,20 @@ document.getElementById("sync").onclick = async (ev) => {
   loadItems();
 };
 
+function showAutoSync(a) {
+  const el = document.getElementById("auto-sync");
+  if (!a || !a.every_hours) { el.textContent = "Automatic sync is off. Use Sync now."; return; }
+  let text = `Syncs automatically every ${a.every_hours} hours while the server runs.`;
+  if (a.last_finished_at) {
+    text += ` Last automatic sync: ${when(a.last_finished_at)} (${a.last_ok ? "ok" : "problem"}: ${a.last_message}).`;
+  }
+  el.textContent = text;
+}
+
 api("/plaid/status")
-  .then(({ env }) => {
+  .then(({ env, auto_sync }) => {
     if (env === "sandbox") document.getElementById("sandbox-banner").style.display = "block";
+    showAutoSync(auto_sync);
   })
   .catch((e) => log(`Server not ready: ${e.message}`, "bad"));
 loadItems().catch(() => {});
