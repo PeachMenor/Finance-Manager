@@ -282,3 +282,17 @@ class SplitExpense(Base):
 
             return {k: int(v) for k, v in json.loads(self.split_parts).items()}
         return {self.category: self.share_cents}
+
+
+class ManualRecurring(Base):
+    """A monthly bill entered by hand, e.g. your share of a plan someone else pays."""
+
+    __tablename__ = "manual_recurring"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    amount_cents: Mapped[int] = mapped_column(Integer)  # per month, your share
+    category: Mapped[str] = mapped_column(String(80))
+    day_of_month: Mapped[int | None] = mapped_column(Integer)
+    paid_via: Mapped[str | None] = mapped_column(String(120))  # e.g. "Splitwise"
+    note: Mapped[str | None] = mapped_column(String(300))

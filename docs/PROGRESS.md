@@ -48,7 +48,9 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
 - [x] 🤖 Weekly settle-up nudge (`nudge` command; scheduled phone notification)
 - [ ] 🧑 Earlier months' Splitwise exports (so earlier rent and shared costs count only your share)
-- [ ] 🤖 Recurring monthly bills detection
+- [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
+- [ ] 🧑 Confirm phone-plan share via Splitwise, then add it by hand
+- [ ] 🧑 Apple Card statements (purchases currently missing: only card payments are visible)
 - [ ] 🤖 Annual expenses with monthly set-aside
 - [ ] 🤖 Credit card due dates and utilization
 - [ ] 🧑🤖 Category corrections you can make

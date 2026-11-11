@@ -142,3 +142,8 @@ def test_dashboard_reports_shared_coverage(session):
                              cost_cents=100, you_paid_cents=100, share_cents=50, category="Rent"))
     session.commit()
     assert build_dashboard(session)["spending"]["shared_from"] == "2026-11-01"
+
+
+def test_dashboard_includes_recurring(session):
+    d = build_dashboard(session)
+    assert d["recurring"] == {"monthly_total_cents": 0, "bills": []}

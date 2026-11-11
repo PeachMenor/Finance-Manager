@@ -107,6 +107,13 @@
   .swatch { width: 10px; height: 10px; border-radius: 3px; }
   .legend .pct { color: var(--text-muted); font-size: 12px; min-width: 38px; text-align: right; }
 
+  /* Recurring bills */
+  .bills { columns: 2; column-gap: 40px; }
+  @media (max-width: 760px) { .bills { columns: 1; } }
+  .bills li { break-inside: avoid; }
+  .bills .meta { font-size: 12px; color: var(--text-muted); }
+  .bills li.inactive { opacity: .55; }
+
   /* Ledger lists */
   .ledger { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
   @media (max-width: 960px) { .ledger { grid-template-columns: 1fr 1fr; } }
@@ -198,6 +205,16 @@
       </div>
     </div>
     <p class="note">Spending counts purchases and bills across all accounts, minus refunds. Card payments, loan payments and transfers between your own accounts are left out so nothing counts twice. <span id="shared-note"></span> Savings rate = (income − spending) ÷ income.</p>
+  </section>
+
+  <!-- Recurring bills -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Subscriptions &amp; bills</h2>
+      <span class="small muted" id="bills-total"></span>
+    </div>
+    <ul class="rows bills" id="bills"></ul>
+    <p class="note">Found automatically: charges from the same merchant, about a month apart, at the same price (one price change allowed). Shared bills show your share.</p>
   </section>
 
   <!-- Net worth over time -->
@@ -460,6 +477,23 @@ function renderLine(history) {
   hit.addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
 }
 
+// ---------- Recurring bills ----------
+function renderBills(d) {
+  const r = d.recurring, ul = document.getElementById("bills");
+  ul.replaceChildren();
+  document.getElementById("bills-total").textContent =
+    `${money(r.monthly_total_cents)} a month · ${money0(r.monthly_total_cents * 12)} a year`;
+  if (!r.bills.length) { ul.append(el("li", { className: "zero" }, "None found yet.")); return; }
+  const shortDate = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  for (const b of r.bills) {
+    const meta = [b.account, b.category, b.next_expected ? `next ~${shortDate(b.next_expected)}` : null, b.note || null]
+      .filter(Boolean).join(" · ");
+    ul.append(el("li", { className: b.active ? "" : "inactive" },
+      el("div", { className: "name" }, el("div", { textContent: b.name }), el("div", { className: "meta", textContent: meta })),
+      el("div", { className: "amt num", textContent: money(b.amount_cents) })));
+  }
+}
+
 // ---------- Accounts ledger ----------
 function rows(list, { extra = [] } = {}) {
   const ul = el("ul", { className: "rows" });
@@ -519,7 +553,7 @@ async function load() {
   document.getElementById("shared-note").textContent = sf
     ? `Shared expenses count only your share (from Splitwise, ${new Date(sf + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} onward); earlier shared purchases still count in full until imported.`
     : "Shared purchases count in full until Splitwise expenses are imported.";
-  renderKpis(DATA); renderBars(DATA); renderDonut(DATA); renderLine(DATA.history); renderLedger(DATA);
+  renderKpis(DATA); renderBars(DATA); renderDonut(DATA); renderBills(DATA); renderLine(DATA.history); renderLedger(DATA);
 }
 function showError(msg) { const e = document.getElementById("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
 document.getElementById("sync").onclick = async (ev) => {

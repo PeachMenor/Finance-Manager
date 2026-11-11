@@ -255,6 +255,49 @@ def cmd_nudge() -> int:
     return 0
 
 
+def cmd_recurring() -> int:
+    """List recurring monthly bills: detected from transactions plus ones added by hand."""
+    from app.db.base import SessionLocal, init_db
+    from app.services.money import format_cents
+    from app.services.recurring import detect_recurring, monthly_total_cents
+
+    init_db()
+    with SessionLocal() as session:
+        bills = detect_recurring(session, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
+        for b in bills:
+            when = f"next ~{b.next_expected}" if b.next_expected else "—"
+            extra = f"  ({b.note})" if b.note else ""
+            print(f"  {b.name:<26} {format_cents(b.amount_cents):>10}/mo  {b.category:<18} "
+                  f"{(b.account or ''):<30} {when}{extra}")
+        print(f"\n  Monthly total (active): {format_cents(monthly_total_cents(bills))}")
+    return 0
+
+
+def cmd_recurring_add(a) -> int:
+    """Add or update a monthly bill by hand (e.g. a share paid through Splitwise)."""
+    from sqlalchemy import select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import ManualRecurring
+    from app.services.money import to_cents
+    from app.services.spending import CATEGORIES
+
+    if a.category not in CATEGORIES:
+        print(f"Category must be one of {CATEGORIES}")
+        return 1
+    init_db()
+    with SessionLocal() as session:
+        row = session.scalar(select(ManualRecurring).where(ManualRecurring.name == a.name))
+        if row is None:
+            row = ManualRecurring(name=a.name)
+            session.add(row)
+        row.amount_cents, row.category = to_cents(a.amount), a.category
+        row.day_of_month, row.paid_via, row.note = a.day, a.paid_via, a.note
+        session.commit()
+        print(f"Saved monthly bill '{a.name}'.")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -453,6 +496,14 @@ def main(argv: list[str] | None = None) -> int:
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
     sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
+    sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
+    ra = sub.add_parser("recurring-add", help="add a monthly bill by hand")
+    ra.add_argument("--name", required=True)
+    ra.add_argument("--amount", required=True, help="per month, your share")
+    ra.add_argument("--category", required=True)
+    ra.add_argument("--day", type=int, help="usual day of month")
+    ra.add_argument("--paid-via", help='e.g. "Splitwise"')
+    ra.add_argument("--note")
     sx = sub.add_parser("splitwise-import-expenses", help="load shared expenses (your share) from JSON")
     sx.add_argument("file")
     sub.add_parser("accounts", help="list accounts with their ids")
@@ -493,6 +544,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_demo()
     if args.command == "plaid-sandbox-check":
         return cmd_plaid_sandbox_check()
+    if args.command == "recurring":
+        return cmd_recurring()
+    if args.command == "recurring-add":
+        return cmd_recurring_add(args)
     if args.command == "nudge":
         return cmd_nudge()
     if args.command == "splitwise-import-expenses":

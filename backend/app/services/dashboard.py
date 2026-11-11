@@ -19,7 +19,9 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Account, AccountKind, BalanceSnapshot, LoanTerms, PlaidItem, SplitExpense
 from app.services.loans import estimate_balance, months_to_payoff
+from app.config import REPO_ROOT
 from app.services.networth import compute_net_worth
+from app.services.recurring import detect_recurring, monthly_total_cents
 from app.services.spending import CATEGORIES, monthly_summary
 
 GROUPS = [
@@ -99,6 +101,18 @@ def net_worth_history(session: Session, currency: str = "USD") -> list[dict]:
     return history
 
 
+def _recurring(session: Session, today: date) -> dict:
+    bills = detect_recurring(session, today=today, labels_path=REPO_ROOT / "data" / "recurring_labels.json")
+    return {
+        "monthly_total_cents": monthly_total_cents(bills),
+        "bills": [{
+            "name": b.name, "category": b.category, "amount_cents": b.amount_cents,
+            "account": b.account, "source": b.source, "active": b.active, "note": b.note,
+            "next_expected": b.next_expected.isoformat() if b.next_expected else None,
+        } for b in bills],
+    }
+
+
 def build_dashboard(session: Session, today: date | None = None) -> dict:
     today = today or date.today()
     s = compute_net_worth(session)
@@ -142,6 +156,7 @@ def build_dashboard(session: Session, today: date | None = None) -> dict:
         "people": [{"name": n, "amount_cents": c} for n, c in s.people],
         "loans": loans,
         "history": net_worth_history(session),
+        "recurring": _recurring(session, today),
         "spending": {
             "categories": CATEGORIES,
             "months": monthly_summary(session, months=6, today=today),
