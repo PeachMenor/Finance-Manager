@@ -40,7 +40,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Light/dark, works at phone width; Sync now on the dashboard
 - [x] 🤖 Redesign ("Ledger"): KPI strip (net worth, spent this month, savings rate, debts), monthly spending bars with savings rate per month, category donut for the selected month, accounts ledger
 - [x] 🤖 Transaction categories stored from the bank feed; spending/income/transfer rules (card and loan payments, transfers never count as spending)
-- [ ] 🧑 Review the look and tell me what to change
+- [x] 🧑 Review the look (approved 2026-11-10; further tweaks as they come)
 
 ## Stage 3 — Debts and expenses
 - [ ] Not started
