@@ -129,3 +129,23 @@ def test_one_charge_matches_only_one_expense(session):
     m = monthly_summary(session, months=1, today=date(2026, 11, 20))[0]
     # A: charge 40 -> share 20. B: no charge left -> share 20 added, flagged unmatched.
     assert m["by_category"] == {"Food": 4_000} and m["unmatched_shared"] == 1
+
+
+def test_rent_base_splits_utilities_out(session, tmp_path):
+    import json
+
+    from app import cli
+
+    chk = Account(name="Checking", kind=AccountKind.CHECKING, source=DataSource.MANUAL, external_id="c", balance_cents=0)
+    session.add(chk)
+    session.flush()
+    _add(session, chk, "rent", date(2026, 11, 2), -200_000, "RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT")
+    session.commit()
+    f = tmp_path / "x.json"
+    f.write_text(json.dumps({"rent_base": 1800.00, "expenses": [
+        {"date": "2026-11-01", "group": "Apt", "description": "Rent", "cost": 2000.00,
+         "you_paid": 2000.00, "your_share": 1000.00, "category": "Rent"}]}))
+    assert cli.main(["splitwise-import-expenses", str(f)]) == 0
+    m = monthly_summary(session, months=1, today=date(2026, 11, 20))[0]
+    # your 1,000 share: 1,800/2,000 of it is rent (900), the rest utilities (100)
+    assert m["by_category"] == {"Rent": 90_000, "Bills & utilities": 10_000}

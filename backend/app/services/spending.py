@@ -173,11 +173,13 @@ def monthly_summary(session: Session, months: int = 6, today: date | None = None
             if k in spending:
                 cat = classify(t.provider_category, t.provider_category_detailed, t.amount_cents, t.category).category
                 spending[k][cat] -= e.you_paid_cents  # take out the full charge...
-                spending[k][e.category] += e.share_cents  # ...and count only your share
+                for part_cat, cents in e.parts().items():  # ...and count only your share
+                    spending[k][part_cat] += cents
         else:
             k = _month_key(e.spent_on)
             if k in spending:
-                spending[k][e.category] += e.share_cents  # someone else paid (or unlinked account)
+                for part_cat, cents in e.parts().items():  # someone else paid (or unlinked account)
+                    spending[k][part_cat] += cents
                 first_day[k] = min(first_day.get(k, e.spent_on), e.spent_on)
                 if e.you_paid_cents > 0:
                     unmatched[k] += 1

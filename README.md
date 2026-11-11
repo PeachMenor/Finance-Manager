@@ -69,6 +69,8 @@ _Work in progress: see [docs/PLAN.md](docs/PLAN.md) for the roadmap and [docs/PR
    ```bash
    python -m app.cli splitwise-import-expenses ../data/splitwise_expenses.json
    ```
+   If your monthly rent payment also covers utilities, add `"rent_base": <monthly rent>` at the top of that file: the part above it counts as Bills & utilities.
+   Weekly settle-up reminder text (who to pay, who to collect from): `python -m app.cli nudge`.
 9. Start the server (from `backend/`):
    ```bash
    uvicorn app.main:app --reload

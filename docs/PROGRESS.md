@@ -45,6 +45,8 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 ## Stage 3 — Debts and expenses
 - [x] 🤖 Shared expenses count only your share: Splitwise expenses matched to bank/card charges (same amount, up to 31 days before / 7 after); expenses others paid add your share; settle-ups stay transfers
 - [x] 🧑 First Splitwise exports and balances imported (November)
+- [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
+- [x] 🤖 Weekly settle-up nudge (`nudge` command; scheduled phone notification)
 - [ ] 🧑 Earlier months' Splitwise exports (so earlier rent and shared costs count only your share)
 - [ ] 🤖 Recurring monthly bills detection
 - [ ] 🤖 Annual expenses with monthly set-aside

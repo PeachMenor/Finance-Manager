@@ -172,13 +172,29 @@ def cmd_people_import(path: str) -> int:
     return 0
 
 
+def _rent_split(e: dict, rent_base_cents: int | None) -> str | None:
+    """Split a rent expense's share into base rent and utilities, pro rata."""
+    import json
+
+    from app.services.money import to_cents
+
+    cost, share = to_cents(str(e["cost"])), to_cents(str(e["your_share"]))
+    if e["category"] != "Rent" or not rent_base_cents or cost <= rent_base_cents:
+        return None
+    rent_part = round(share * rent_base_cents / cost)
+    return json.dumps({"Rent": rent_part, "Bills & utilities": share - rent_part})
+
+
 def cmd_splitwise_import_expenses(path: str) -> int:
     """Replace stored shared expenses with the contents of a JSON file.
 
-    {"expenses": [{"date": "2026-11-01", "group": "Apartment", "description": "Rent",
+    {"rent_base": 1800.00,   # optional: fixed monthly rent; anything above it in a
+                             # "Rent" expense is utilities billed with the rent
+     "expenses": [{"date": "2026-11-01", "group": "Apartment", "description": "Rent",
                    "cost": 2000.00, "you_paid": 2000.00, "your_share": 1000.00,
                    "category": "Rent"}, ...]}
-    Keep the file in data/ (git-ignored).
+    With rent_base 1800, that rent is split pro rata: your 1000 share becomes
+    900 Rent + 100 Bills & utilities. Keep the file in data/ (git-ignored).
     """
     import json
     from datetime import date
@@ -191,6 +207,7 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     from app.services.spending import CATEGORIES, match_split_expenses
 
     data = json.loads(Path(path).read_text())
+    rent_base = to_cents(str(data["rent_base"])) if data.get("rent_base") else None
     init_db()
     with SessionLocal() as session:
         session.execute(delete(SplitExpense))
@@ -208,6 +225,7 @@ def cmd_splitwise_import_expenses(path: str) -> int:
                 you_paid_cents=to_cents(str(e["you_paid"])),
                 share_cents=to_cents(str(e["your_share"])),
                 category=e["category"],
+                split_parts=_rent_split(e, rent_base),
             ))
         session.commit()
         print(f"Imported {len(data['expenses'])} shared expenses.")
@@ -219,8 +237,21 @@ def cmd_splitwise_import_expenses(path: str) -> int:
                 how = "NO matching charge found (paid from an unlinked account?)"
             else:
                 how = "paid by someone else"
-            print(f"  {e.spent_on} {e.description}: your share {format_cents(e.share_cents)} "
+            parts = e.parts()
+            split = (" = " + " + ".join(f"{format_cents(c)} {k}" for k, c in parts.items())) if len(parts) > 1 else ""
+            print(f"  {e.spent_on} {e.description}: your share {format_cents(e.share_cents)}{split} "
                   f"of {format_cents(e.cost_cents)}; {how}")
+    return 0
+
+
+def cmd_nudge() -> int:
+    """Print the weekly settle-up reminder (used by the scheduled phone nudge)."""
+    from app.db.base import SessionLocal, init_db
+    from app.services.nudge import build_nudge
+
+    init_db()
+    with SessionLocal() as session:
+        print(build_nudge(session) or "Splitwise: all settled up.")
     return 0
 
 
@@ -421,6 +452,7 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("people-import", help="load who-owes-whom balances from JSON")
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
+    sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     sx = sub.add_parser("splitwise-import-expenses", help="load shared expenses (your share) from JSON")
     sx.add_argument("file")
     sub.add_parser("accounts", help="list accounts with their ids")
@@ -461,6 +493,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_demo()
     if args.command == "plaid-sandbox-check":
         return cmd_plaid_sandbox_check()
+    if args.command == "nudge":
+        return cmd_nudge()
     if args.command == "splitwise-import-expenses":
         return cmd_splitwise_import_expenses(args.file)
     if args.command == "people-import":

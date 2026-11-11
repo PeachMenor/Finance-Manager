@@ -271,3 +271,14 @@ class SplitExpense(Base):
     you_paid_cents: Mapped[int] = mapped_column(Integer)
     share_cents: Mapped[int] = mapped_column(Integer)
     category: Mapped[str] = mapped_column(String(80))
+    # Optional split of your share across categories, as JSON {"Rent": 144750, ...}
+    # (e.g. one rent payment that also covers utilities). Must add up to share_cents.
+    split_parts: Mapped[str | None] = mapped_column(String(500))
+
+    def parts(self) -> dict[str, int]:
+        """Your share by category (the whole share in `category` unless split)."""
+        if self.split_parts:
+            import json
+
+            return {k: int(v) for k, v in json.loads(self.split_parts).items()}
+        return {self.category: self.share_cents}
