@@ -74,3 +74,21 @@ def test_settle_after_confirmation(session, tmp_path, monkeypatch, capsys):
     log = json.loads((tmp_path / "settlements.json").read_text())
     assert [(x["name"], x["paid"]) for x in log] == [("Sam Lee", 100.0), ("Sam Lee", 23.45)]
     assert "all settled with them" in capsys.readouterr().out
+
+
+def test_sms_reminder_and_settle_pending(session, tmp_path, monkeypatch, capsys):
+    import json
+
+    from app import cli
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    _people(session, [("Sam Lee", -12_345), ("Jo Park", 40_000)])
+    assert cli.main(["nudge", "--sms"]) == 0
+    assert "pay Sam Lee $123.45 on Splitwise this week. Reply YES once paid." in capsys.readouterr().out
+    assert json.loads((tmp_path / "pending_settle.json").read_text())["name"] == "Sam Lee"
+    assert cli.main(["people-settle", "--pending"]) == 0
+    assert not (tmp_path / "pending_settle.json").exists()
+    assert cli.main(["people-settle", "--pending"]) == 1  # nothing left to confirm
+    _people(session, [("Jo Park", 40_000)])
+    assert cli.main(["nudge", "--sms"]) == 0
+    assert "don't owe anyone" in capsys.readouterr().out

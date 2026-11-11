@@ -248,13 +248,33 @@ def cmd_splitwise_import_expenses(path: str) -> int:
     return 0
 
 
-def cmd_nudge(pay_one: bool = False) -> int:
-    """Print the weekly settle-up reminder (used by the scheduled phone nudge)."""
+def cmd_nudge(pay_one: bool = False, sms: bool = False) -> int:
+    """Print the weekly settle-up reminder (used by the scheduled phone nudge).
+
+    With --sms: print a short text message asking you to reply YES once paid, and
+    remember who it asked about (data/pending_settle.json) so a YES reply can be
+    matched to exactly that person.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    from app.config import data_dir
     from app.db.base import SessionLocal, init_db
-    from app.services.nudge import build_nudge, build_pay_one
+    from app.services.nudge import build_nudge, build_pay_one, next_payee
 
     init_db()
     with SessionLocal() as session:
+        if sms:
+            who = next_payee(session)
+            pending = data_dir() / "pending_settle.json"
+            if not who:
+                pending.unlink(missing_ok=True)
+                print("Finance: you don't owe anyone on Splitwise right now.")
+                return 0
+            pending.write_text(json.dumps({"name": who[0], "amount": who[1] / 100,
+                                           "asked_at": datetime.now(timezone.utc).isoformat()}))
+            print(f"Finance: pay {who[0]} ${who[1] / 100:,.2f} on Splitwise this week. Reply YES once paid.")
+            return 0
         text = build_pay_one(session) if pay_one else build_nudge(session)
         print(text or "Splitwise: all settled up.")
         if pay_one:
@@ -794,10 +814,13 @@ def main(argv: list[str] | None = None) -> int:
     imp.add_argument("file")
     sub.add_parser("summary", help="print net worth from your real database")
     ps = sub.add_parser("people-settle", help="record that you paid someone back (after you confirm)")
-    ps.add_argument("name", help="full name or the start of it")
+    ps.add_argument("name", nargs="?", help="full name or the start of it")
+    ps.add_argument("--pending", action="store_true",
+                    help="the person the last reminder text asked about (after a YES reply)")
     ps.add_argument("--amount", help="if you paid only part of it")
     nu = sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
+    nu.add_argument("--sms", action="store_true", help="short text asking for a YES reply; remembers who it asked about")
     sub.add_parser("budgets", help="budget lines: spent against your limits")
     sub.add_parser("year", help="budget year so far: income, expenses, saved, invested")
     rp = sub.add_parser("report", help="monthly PDF report (saved in data/reports/)")
@@ -887,10 +910,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "budgets":
         return cmd_budgets()
     if args.command == "nudge":
-        return cmd_nudge(args.pay_one)
+        return cmd_nudge(args.pay_one, args.sms)
     if args.command == "splitwise-import-expenses":
         return cmd_splitwise_import_expenses(args.file)
     if args.command == "people-settle":
+        if args.pending:
+            import json
+
+            from app.config import data_dir
+
+            pending = data_dir() / "pending_settle.json"
+            if not pending.exists():
+                print("Nothing pending: no reminder is waiting for a reply.")
+                return 1
+            who = json.loads(pending.read_text())
+            code = cmd_people_settle(who["name"], args.amount)
+            if code == 0:
+                pending.unlink()
+            return code
+        if not args.name:
+            print("Give a name, or --pending.")
+            return 1
         return cmd_people_settle(args.name, args.amount)
     if args.command == "people-import":
         return cmd_people_import(args.file)

@@ -48,6 +48,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Rent payments split into base rent and utilities billed with it (`rent_base`)
 - [x] 🤖 Weekly settle-up nudge (`nudge` command); Friday 6 PM phone reminder to pay one person (`--pay-one`, biggest first)
 - [x] 🤖 Reminder asks "Did you pay?"; only an explicit yes records it (`people-settle`), updating balances and logging the payment
+- [x] 🤖 Reminders and report notices go by text message (email-to-text via your mail account); a YES reply from your own number marks the payment (`nudge --sms`, `people-settle --pending`)
 - [x] 🧑 Splitwise: weekly Friday screenshots of balances (earlier months not needed; rent handled by the household rule)
 - [x] 🤖 Recurring monthly bills detection (steady price, one price change allowed; habits excluded) + hand-added bills; dashboard section
 - [x] 🤖 Loan payments and steady investing transfers shown as their own recurring groups (not spending)
@@ -112,6 +113,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 | 2026-11-10 | Budget year counts 12 rent months (those starting inside the year) | A year starting mid-month shouldn't include that month's rent |
 | 2026-11-10 | Employer reimbursements reduce the expense they repay, not counted as income | Keeps both income and spending honest |
 | 2026-11-10 | Dashboard starts at a tracking start date (Nov 1, 2026); older data kept but hidden | Easier to track going forward; bill detection still needs past charges |
+| 2026-11-11 | Phone delivery by text message, not app notifications | App notifications from scheduled runs couldn't reach the phone reliably |
 | 2026-11-11 | Report net worth includes latest Splitwise balances | Matches the dashboard's net worth formula |
 | 2026-11-11 | Seasons: Winter Dec–Feb, Spring Mar–May, Summer Jun–Aug, Fall Sep–Nov | Compares like-for-like quarters of the year |
 | 2026-11-10 | `PLAID_ENV` picks the database: sandbox → `sandbox.db`, production → `finance.db` | Fake test banks can never land in real data |
