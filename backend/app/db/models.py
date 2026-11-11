@@ -67,7 +67,7 @@ class BudgetPeriod(str, enum.Enum):
 
 
 class Institution(Base):
-    """A bank, card issuer or brokerage (e.g. "Chase")."""
+    """A bank, card issuer or brokerage (e.g. "Example Bank")."""
 
     __tablename__ = "institutions"
 

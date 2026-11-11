@@ -10,15 +10,15 @@ Each method below is a module in `backend/app/integrations/`.
 | **SimpleFIN Bridge** (backup) | Institutions Plaid can't reach | Balances, transactions, some holdings | About $15/year |
 | **Splitwise screenshot** (current) | Shared bills | Who owes you, whom you owe | Free. Weekly: read balances off a Splitwise screenshot into `data/splitwise_balances.json`, then `python -m app.cli people-import data/splitwise_balances.json` |
 | **Splitwise API** (optional) | Shared bills, automatically | Same, synced | Requires a Splitwise Pro subscription; code is ready if you ever enable it |
-| **Statement import** (OFX/QFX/CSV) | Cards with no aggregator support (for example Apple Card, which exports from the Wallet app) | Transactions and balance from each monthly statement | Free |
+| **Statement import** (OFX/QFX/CSV) | Cards no aggregator supports, when the issuer lets you export statements | Transactions and balance from each monthly statement | Free |
 | **Manual entry** | Things with no feed: cash balances, unvested RSUs, a loan with no connection | A balance you update; loans can be computed from balance, APR and payment | Free |
 
-## Known gaps (as of November 2026)
+## Common gaps and workarounds
 
-- **Apple Card**: no aggregator support. Export each monthly statement from Wallet (Wallet → Apple Card → Card Balance → statement → Export Transactions → OFX) and import it.
-- **Apple Cash**: statements are PDF only, so enter the balance manually.
-- **Bilt 2.0 cards** (issued by Column N.A.): Plaid lists support, but users report missing transactions since the 2026 card switch. Fallback: manual entry.
-- **Unvested RSUs**: aggregators usually show only vested shares. Enter grants and vesting dates manually; they are shown separately and excluded from net worth by default, since they aren't yours yet.
+- **Card not supported by any aggregator**: if the issuer lets you export monthly statements (OFX, QFX or CSV), import those. OFX is the most reliable format.
+- **Balance with PDF-only statements** (some wallet or stored-value balances): enter the balance manually.
+- **Card that syncs a balance but no transactions** (this can happen after an issuer changes): use manual entry until the connection catches up.
+- **Unvested stock awards (RSUs)**: aggregators usually show only vested shares. Enter grants and vesting dates manually; they are shown separately and excluded from net worth by default, since they aren't yours yet.
 
 ## Choosing Plaid vs. SimpleFIN
 
