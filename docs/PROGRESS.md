@@ -61,7 +61,7 @@ Personal details (which banks, balances, budgets) are **not** recorded here. Thi
 - [x] 🤖 Categories: "Other" broken out into Health & care, Bills & subscriptions (insurance, software); Transport & travel merged
 - [x] 🤖 Recurring income: paychecks (biweekly), interest; expected bonuses; bills marked paid this month
 - [x] 🤖 Dashboard: selected month drives the headline figures; owed in green / owe in red; tabs between Ledger and Linked accounts
-- [ ] 🧑 Next semester's tuition amount and typical bonus amount
+- [x] 🧑 Tuition and bonus: added when they arrive, not estimated ahead (placeholders removed)
 
 ## Stage 4 — Budgets
 - [ ] Not started

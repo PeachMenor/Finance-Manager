@@ -2,6 +2,8 @@
 
 from datetime import date
 
+from sqlalchemy import select
+
 from app.db.models import Account, AccountKind, DataSource, ManualRecurring, SplitExpense, Transaction
 from app.services.recurring import detect_recurring, monthly_total_cents
 
@@ -182,3 +184,14 @@ def test_paid_this_month(session):
     session.commit()
     bills = _names(session)
     assert bills["PaidCo"].paid_this_month is True and bills["LaterCo"].paid_this_month is False
+
+
+def test_remove_hand_added_item(session):
+    from app import cli
+
+    session.add(ManualRecurring(name="Placeholder", amount_cents=0, category="Other"))
+    session.commit()
+    assert cli.main(["recurring-remove", "Nope"]) == 1
+    assert cli.main(["recurring-remove", "Placeholder"]) == 0
+    session.expire_all()
+    assert session.scalars(select(ManualRecurring)).all() == []

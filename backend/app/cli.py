@@ -419,6 +419,26 @@ def cmd_split_txn(txn_id: int, parts: list[str], note: str | None) -> int:
     return 0
 
 
+def cmd_recurring_remove(name: str) -> int:
+    """Remove a bill or expected income you added by hand."""
+    from sqlalchemy import select
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import ManualRecurring
+
+    init_db()
+    with SessionLocal() as session:
+        row = session.scalar(select(ManualRecurring).where(ManualRecurring.name == name))
+        if row is None:
+            names = [r.name for r in session.scalars(select(ManualRecurring))]
+            print(f"No hand-added item called {name!r}. You have: {names}")
+            return 1
+        session.delete(row)
+        session.commit()
+        print(f"Removed '{name}'.")
+    return 0
+
+
 def cmd_summary() -> int:
     from app.db.base import SessionLocal, init_db
     from app.services.loans import refresh_manual_loans
@@ -618,6 +638,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("summary", help="print net worth from your real database")
     sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
+    rr = sub.add_parser("recurring-remove", help="remove a bill or expected income you added by hand")
+    rr.add_argument("name")
     tf = sub.add_parser("txn-find", help="search transactions by text, amount or note")
     tf.add_argument("text")
     cz = sub.add_parser("categorize", help="set your own category / note on a transaction")
@@ -688,6 +710,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_categorize(args.txn_id, args.category, args.note)
     if args.command == "recurring":
         return cmd_recurring()
+    if args.command == "recurring-remove":
+        return cmd_recurring_remove(args.name)
     if args.command == "recurring-add":
         return cmd_recurring_add(args)
     if args.command == "nudge":
