@@ -86,6 +86,53 @@ def _bar(value: int, max_value: int, width: float = 1.4 * inch) -> Drawing:
     return d
 
 
+BIG = ParagraphStyle("big", fontName="Times-Bold", fontSize=21, leading=25, textColor=INK)
+TILE_NOTE = ParagraphStyle("tilenote", fontName="Helvetica", fontSize=8, leading=10.5, textColor=MUTED)
+
+
+def _delta_note(now: int | None, before: int | None, good_when_up: bool = True) -> str:
+    """'+$120.00 vs Oct' in green/red, or a muted dash when there's nothing to compare."""
+    if now is None or before is None:
+        return "no earlier month yet"
+    diff = now - before
+    color = MUTED if diff == 0 else (GOOD if (diff > 0) == good_when_up else BAD)
+    return f'<font color="{color.hexval()}">{money(diff, sign=True)}</font>'
+
+
+def _headline(r: dict, width: float) -> Table:
+    """Four big numbers across the top: earnings, expenses, savings, net worth."""
+    t, p = r["this"], r["previous"]
+    vs = f" vs {month_name(r['previous_month']).split()[0][:3]}" if p else ""
+    nw_vs = f" vs {month_name(r['previous_month']).split()[0][:3]}" if r["net_worth_prev_end_cents"] is not None else ""
+
+    def tile(label: str, value: str, note: str) -> list:
+        return [Paragraph(label, EYEBROW), Spacer(1, 3), Paragraph(value, BIG), Spacer(1, 2), Paragraph(note, TILE_NOTE)]
+
+    saved_note = f"{pct(t['savings_rate'])} of earnings"
+    if p:
+        saved_note += "<br/>" + _delta_note(t["saved_cents"], p["saved_cents"]) + vs
+    tiles = [
+        tile("EARNINGS", money(t["income_cents"]),
+             _delta_note(t["income_cents"], p["income_cents"] if p else None) + vs),
+        tile("EXPENSES", money(t["expenses_cents"]),
+             _delta_note(t["expenses_cents"], p["expenses_cents"] if p else None, good_when_up=False) + vs),
+        tile("SAVINGS", money(t["saved_cents"]), saved_note),
+        tile("NET WORTH", money(r["net_worth_end_cents"]),
+             _delta_note(r["net_worth_end_cents"], r["net_worth_prev_end_cents"]) + nw_vs),
+    ]
+    tbl = Table([tiles], colWidths=[width / 4] * 4, hAlign="LEFT")
+    tbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LINEABOVE", (0, 0), (-1, 0), 1.2, INK),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.5, RULE),
+        ("LINEBEFORE", (1, 0), (-1, 0), 0.5, RULE),
+        ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING", (0, 0), (0, 0), 0), ("LEFTPADDING", (1, 0), (-1, 0), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    return tbl
+
+
 def _highlights(r: dict) -> list[str]:
     out = []
     t, p = r["this"], r["previous"]
@@ -128,7 +175,8 @@ def render_month_report(r: dict, path: Path) -> Path:
               Paragraph(month_name(r["month"]), H1),
               Paragraph(f"{fmt(r['from'])} – {fmt(r['through'])}"
                         + ("" if r["complete"] else " · <b>month in progress</b>")
-                        + f" · generated {fmt(r['generated'])}", SMALL), Spacer(1, 10)]
+                        + f" · generated {fmt(r['generated'])}", SMALL), Spacer(1, 14),
+              _headline(r, W), Spacer(1, 4)]
 
     prev_label = month_name(r["previous_month"]).split()[0][:3] if p else "Prev."
     section = [Paragraph("The month at a glance", H2)]
