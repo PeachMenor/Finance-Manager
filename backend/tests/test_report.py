@@ -55,3 +55,20 @@ def test_first_month_has_no_previous(session, tmp_path):
     r = build_month_report(session, "2026-11", today=date(2026, 11, 15), tracking_start=date(2026, 11, 1))
     assert r["previous"] is None and r["net_worth_prev_end_cents"] is None and r["complete"] is False
     assert render_month_report(r, tmp_path / "x.pdf").exists()
+
+
+def test_report_send_emails_pdf_then_texts(tmp_path, monkeypatch):
+    from app import cli
+
+    calls = []
+    monkeypatch.setattr(cli, "send_email", lambda subj, body, att: calls.append(("email", subj, att)) or True)
+    monkeypatch.setattr(cli, "send_text", lambda m: calls.append(("text", m)) or True)
+    pdf = tmp_path / "r.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    assert cli.deliver_report(pdf, "Finance report: November 2026", "November 2026: income $1.00") == 0
+    assert calls[0] == ("email", "Finance report: November 2026", pdf)
+    assert calls[1][0] == "text" and "PDF in your email" in calls[1][1]
+    calls.clear()
+    monkeypatch.setattr(cli, "send_email", lambda *a: False)
+    assert cli.deliver_report(pdf, "s", "x") == 1
+    assert "couldn't be emailed" in calls[0][1]  # you still hear about it

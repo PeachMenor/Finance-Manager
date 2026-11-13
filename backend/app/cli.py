@@ -38,6 +38,7 @@ def _point_at_demo_db() -> None:
 
 def _use_fresh_demo_db():
     """Wipe and recreate data/demo.db. Refuses to run against any other database."""
+    from app.db import models  # noqa: F401  (registers every table, so drop_all sees them)
     from app.db.base import Base, engine, init_db
 
     # Safety guard: this drops every table, so never let it touch your real data.
@@ -296,6 +297,39 @@ def _smtp_text(message: str, to: str) -> bool:
         return True
     except (smtplib.SMTPException, OSError) as e:
         print(f"Gmail couldn't send the text: {type(e).__name__}")
+        return False
+
+
+def send_email(subject: str, body: str, attachment: Path | None = None) -> bool:
+    """Email yourself (the "report_to" address in the private data/contact.json)
+    through Gmail's mail server, optionally with a PDF attached. Needs
+    FM_SMTP_USER / FM_SMTP_PASSWORD in .env."""
+    import json
+    import os
+    import smtplib
+    from email.message import EmailMessage
+
+    from app.config import data_dir, get_settings  # noqa: F401  (loads .env)
+
+    p = data_dir() / "contact.json"
+    to = (json.loads(p.read_text()) if p.exists() else {}).get("report_to")
+    user, password = os.getenv("FM_SMTP_USER"), (os.getenv("FM_SMTP_PASSWORD") or "").replace(" ", "")
+    if not (to and user and password):
+        print("Email not set up: needs report_to in data/contact.json and FM_SMTP_* in .env.")
+        return False
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = user, to, subject
+    msg.set_content(body)
+    if attachment:
+        msg.add_attachment(Path(attachment).read_bytes(), maintype="application", subtype="pdf",
+                           filename=Path(attachment).name)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as smtp:
+            smtp.login(user, password)
+            smtp.send_message(msg)
+        return True
+    except (smtplib.SMTPException, OSError) as e:
+        print(f"Gmail couldn't send the email: {type(e).__name__}")
         return False
 
 
@@ -630,7 +664,7 @@ def cmd_year() -> int:
     return 0
 
 
-def cmd_report(month: str | None, previous: bool) -> int:
+def cmd_report(month: str | None, previous: bool, send: bool = False) -> int:
     """Build the monthly PDF report. Prints the PDF path, then a one-line summary."""
     from datetime import date
 
@@ -653,10 +687,22 @@ def cmd_report(month: str | None, previous: bool) -> int:
     suffix = "" if r["complete"] else "-so-far"
     path = render_month_report(r, data_dir() / "reports" / f"finance-report-{key}{suffix}.pdf")
     t = r["this"]
+    summary = (f"{month_name(key)}{'' if r['complete'] else ' (so far)'}: income {format_cents(t['income_cents'])}, "
+               f"expenses {format_cents(t['expenses_cents'])}, saved {pct(t['savings_rate'])}, "
+               f"net worth {format_cents(r['net_worth_end_cents'] or 0)}")
     print(path)
-    print(f"{month_name(key)}{'' if r['complete'] else ' (so far)'}: income {format_cents(t['income_cents'])}, "
-          f"expenses {format_cents(t['expenses_cents'])}, saved {pct(t['savings_rate'])}, "
-          f"net worth {format_cents(r['net_worth_end_cents'] or 0)}")
+    print(summary)
+    if send:
+        return deliver_report(path, f"Finance report: {month_name(key)}", summary)
+    return 0
+
+
+def deliver_report(path: Path, subject: str, summary: str) -> int:
+    """Email the PDF to you, then text your phone that it's there."""
+    if not send_email(subject, summary + "\n\nFull report attached.", path):
+        send_text("Finance: your monthly report was built but couldn't be emailed. Open Finance Manager to fix it.")
+        return 1
+    send_text("Finance: " + summary + ". Full PDF in your email.")
     return 0
 
 
@@ -1009,6 +1055,7 @@ def main(argv: list[str] | None = None) -> int:
     rp = sub.add_parser("report", help="monthly PDF report (saved in data/reports/)")
     rp.add_argument("--month", help="YYYY-MM (default: this month so far)")
     rp.add_argument("--previous-month", action="store_true", help="last month (what the 1st-of-month run uses)")
+    rp.add_argument("--send", action="store_true", help="email the PDF to you and text your phone")
     sub.add_parser("recurring", help="list recurring monthly bills and subscriptions")
     rr = sub.add_parser("recurring-remove", help="remove a bill or expected income you added by hand")
     rr.add_argument("name")
@@ -1089,7 +1136,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "recurring-add":
         return cmd_recurring_add(args)
     if args.command == "report":
-        return cmd_report(args.month, args.previous_month)
+        return cmd_report(args.month, args.previous_month, args.send)
     if args.command == "year":
         return cmd_year()
     if args.command == "budgets":
