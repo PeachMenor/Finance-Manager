@@ -163,3 +163,16 @@ def test_send_text_uses_gmail_smtp_when_configured(tmp_path, monkeypatch):
     assert sent["login"] == ("me@example.com", "abcdefgh")  # spaces removed
     assert sent["to"] == "5550000000@sms.example.com"
     assert link in sent["body"]  # link kept exactly as written
+
+
+def test_resend_repeats_waiting_reminder_only(session, tmp_path, monkeypatch, capsys):
+    from app import cli
+
+    monkeypatch.setenv("FM_DATA_DIR", str(tmp_path))
+    sent = []
+    monkeypatch.setattr(cli, "send_text", lambda m: sent.append(m) or True)
+    assert cli.main(["nudge", "--resend"]) == 0 and sent == []  # nothing waiting: no text
+    _people(session, [("Sam Lee", -12_345)])
+    assert cli.main(["nudge", "--sms"]) == 0
+    assert cli.main(["nudge", "--resend"]) == 0
+    assert sent == [sent[0]] and "reminder: pay Sam Lee $123.45" in sent[0]

@@ -379,6 +379,24 @@ def cmd_text_me(message: str) -> int:
     return 0 if send_text(message) else 1
 
 
+def cmd_nudge_resend() -> int:
+    """Re-send the waiting reminder (same person, same link) if you haven't confirmed
+    yet. Does nothing when no reminder is waiting. Used Saturday and Sunday."""
+    import json
+
+    from app.config import data_dir
+
+    pending = data_dir() / "pending_settle.json"
+    if not pending.exists():
+        print("Nothing waiting: no reminder to repeat.")
+        return 0
+    who = json.loads(pending.read_text())
+    text = sms_with_confirm_link(f"Finance reminder: pay {who['name']} ${who['amount']:,.2f} on Splitwise.",
+                                 _confirm_page())
+    print(text)
+    return 0 if send_text(text) else 1
+
+
 def cmd_nudge(pay_one: bool = False, sms: bool = False, send: bool = False) -> int:
     """Print the weekly settle-up reminder (used by the scheduled phone nudge).
 
@@ -1045,7 +1063,8 @@ def main(argv: list[str] | None = None) -> int:
     nu = sub.add_parser("nudge", help="print the weekly Splitwise settle-up reminder")
     nu.add_argument("--pay-one", action="store_true", help="name one person to pay this week (biggest first)")
     nu.add_argument("--sms", action="store_true", help="short text with a confirm link; remembers who it asked about")
-    nu.add_argument("--send", action="store_true", help="with --sms: also text it to your phone via Messages")
+    nu.add_argument("--send", action="store_true", help="with --sms: also text it to your phone")
+    nu.add_argument("--resend", action="store_true", help="repeat the waiting reminder (if not confirmed yet)")
     tm = sub.add_parser("text-me", help="text your own phone via the Messages app")
     tm.add_argument("message")
     sc = sub.add_parser("settle-confirmed", help="after you confirm: mark paid, sync Chase, text you")
@@ -1142,7 +1161,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "budgets":
         return cmd_budgets()
     if args.command == "nudge":
-        return cmd_nudge(args.pay_one, args.sms, args.send)
+        return cmd_nudge_resend() if args.resend else cmd_nudge(args.pay_one, args.sms, args.send)
     if args.command == "text-me":
         return cmd_text_me(args.message)
     if args.command == "settle-confirmed":
